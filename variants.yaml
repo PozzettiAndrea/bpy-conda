@@ -1,0 +1,9 @@
+# Static variant config for rattler-build.
+# The actual build matrix comes from packages/bpy.yml via generate_matrix.py;
+# rattler-build picks the specific cell using --variant flags from CI.
+
+c_stdlib_version:
+  - "2.28"
+
+c_stdlib:
+  - sysroot

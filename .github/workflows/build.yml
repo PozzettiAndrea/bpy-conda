@@ -1,0 +1,163 @@
+name: Build bpy conda packages
+run-name: "bpy ${{ inputs.blender }} | py${{ inputs.python }} | ${{ inputs.platform }}${{ inputs.overwrite && ' [overwrite]' || '' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      python:
+        description: 'Python version filter (or "all")'
+        required: false
+        default: 'all'
+        type: string
+      blender:
+        description: 'Blender version filter, e.g. "4.2.20" (or "all")'
+        required: false
+        default: 'all'
+        type: string
+      platform:
+        description: 'Platform filter (linux, windows, osx-arm64, or "all")'
+        required: false
+        default: 'all'
+        type: string
+      overwrite:
+        description: 'Rebuild even if package already exists on the channel'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pyyaml
+        run: pip install pyyaml
+
+      - name: Generate build matrix
+        id: matrix
+        run: |
+          python3 scripts/generate_matrix.py \
+            --package bpy \
+            --python "${{ inputs.python }}" \
+            --blender "${{ inputs.blender }}" \
+            --platform "${{ inputs.platform }}" \
+            ${{ inputs.overwrite && '--overwrite' || '' }} \
+            --channel pozzettiandrea
+
+  build:
+    needs: generate-matrix
+    if: ${{ needs.generate-matrix.outputs.matrix != '[]' && needs.generate-matrix.outputs.matrix != '' }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    name: "bpy ${{ matrix.blender_version }} | py${{ matrix.python }} | ${{ matrix.platform }}"
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Free disk space (Linux only — runner starts with ~14GB free, the
+      #    Blender lib bundle alone is ~5GB and the build adds several more) ──
+      - name: Free disk space (Linux)
+        if: matrix.platform == 'linux'
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+
+      - name: Add swap (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo fallocate -l 8G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -h
+
+      # ── rattler-build install ──
+      - name: Install rattler-build (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          curl -fsSL https://github.com/prefix-dev/rattler-build/releases/latest/download/rattler-build-x86_64-unknown-linux-musl.tar.gz \
+            | tar xz -C /usr/local/bin/ --strip-components=1
+          rattler-build --version
+
+      - name: Install rattler-build (macOS arm64)
+        if: matrix.platform == 'osx-arm64'
+        run: |
+          curl -fsSL https://github.com/prefix-dev/rattler-build/releases/latest/download/rattler-build-aarch64-apple-darwin.tar.gz \
+            | sudo tar xz -C /usr/local/bin/ --strip-components=1
+          rattler-build --version
+
+      - name: Install rattler-build (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $dest = "$env:USERPROFILE\.local\bin"
+          $url = "https://github.com/prefix-dev/rattler-build/releases/latest/download/rattler-build-x86_64-pc-windows-msvc.zip"
+          Invoke-WebRequest -Uri $url -OutFile rattler-build.zip
+          Expand-Archive -Path rattler-build.zip -DestinationPath $env:TEMP -Force
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          Move-Item "$env:TEMP\rattler-build-x86_64-pc-windows-msvc\rattler-build.exe" "$dest\rattler-build.exe" -Force
+          echo $dest | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & "$dest\rattler-build.exe" --version
+
+      # ── Build ──
+      - name: Build package (Unix)
+        if: matrix.platform != 'windows'
+        run: |
+          set -o pipefail
+          rattler-build build --no-build-id --allow-network --no-test \
+            --recipe recipes/${{ matrix.package }}/recipe.yaml \
+            --variant-config variants.yaml \
+            --channel conda-forge \
+            --variant python=${{ matrix.python }} \
+            --variant blender_version=${{ matrix.blender_version }} \
+            2>&1 | tee build.log
+
+      - name: Build package (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          rattler-build build --no-build-id --allow-network --no-test `
+            --recipe recipes/${{ matrix.package }}/recipe.yaml `
+            --variant-config variants.yaml `
+            --channel conda-forge `
+            --variant python=${{ matrix.python }} `
+            --variant blender_version=${{ matrix.blender_version }} `
+            2>&1 | Tee-Object -FilePath build.log
+
+      # ── Upload to anaconda.org ──
+      - name: Upload to anaconda.org (Unix)
+        if: success() && matrix.platform != 'windows'
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: |
+          pip install "anaconda-client<1.14"
+          find output/ -name "*.conda" -exec anaconda upload --force {} \;
+
+      - name: Upload to anaconda.org (Windows)
+        if: success() && matrix.platform == 'windows'
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        shell: pwsh
+        run: |
+          pip install "anaconda-client<1.14" "setuptools<81"
+          Get-ChildItem -Recurse -Filter "*.conda" output/ | ForEach-Object { anaconda upload --force $_.FullName }
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bpy-${{ matrix.blender_version }}-py${{ matrix.python }}-${{ matrix.subdir }}
+          path: |
+            output/**/*.conda
+            build.log

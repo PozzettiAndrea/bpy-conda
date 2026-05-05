@@ -1,0 +1,83 @@
+context:
+  name: bpy
+  version: ${{ blender_version }}
+  source_repo: "blender/blender"
+  source_tag: "v${{ blender_version }}"
+  py_short: ${{ python | replace('.', '') }}
+
+package:
+  name: ${{ name }}
+  version: ${{ version }}
+
+source:
+  git: https://github.com/${{ source_repo }}.git
+  tag: ${{ source_tag }}
+  # Blender's tree contains submodules (addons, dev tools); we don't need a deep
+  # history but `make update` will fetch the precompiled lib bundle separately.
+  depth: 1
+
+build:
+  number: 0
+  string: "py${{ py_short }}_${{ target_platform }}"
+  # rattler-build auto-detects build.sh / build.bat sitting next to recipe.yaml,
+  # so no explicit `script:` entry is needed.
+
+requirements:
+  build:
+    - if: linux
+      then:
+        - ${{ compiler('c') }}
+        - ${{ compiler('cxx') }}
+        - ${{ stdlib('c') }}
+        - cmake >=3.28
+        - ninja
+        - make
+        - subversion
+        - patchelf
+    - if: osx
+      then:
+        - ${{ compiler('c') }}
+        - ${{ compiler('cxx') }}
+        - ${{ stdlib('c') }}
+        - cmake >=3.28
+        - ninja
+        - make
+        - subversion
+    - if: win
+      then:
+        - cmake >=3.28
+        - ninja
+        - subversion
+  host:
+    - python ${{ python }}.*
+    - pip
+    - setuptools
+    # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
+    # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
+    # `host` because mixing the bundle versions with conda-forge versions leads
+    # to ABI mismatches at link time. Keep host minimal; the bundle provides
+    # the rest of the C++ deps.
+  run:
+    - python ${{ python }}.*
+    # Mirrors how the official PyPI bpy wheels behave: ships statically what it
+    # needs, depends only on Python at runtime.
+
+about:
+  homepage: https://www.blender.org/
+  repository: https://projects.blender.org/blender/blender
+  license: GPL-2.0-or-later
+  license_file:
+    - COPYING
+  summary: Blender as a Python module (bpy) — community-built conda package
+  description: |
+    The `bpy` Python module exposes Blender's Python API as a standalone
+    importable module. This package is built from upstream Blender source
+    (tag pinned in the recipe) using `cmake -DWITH_PYTHON_MODULE=ON`.
+
+    This is an unofficial community build. It is not endorsed by, affiliated
+    with, or sponsored by the Blender Foundation. See NOTICE.md in the
+    PozzettiAndrea/bpy-conda repository for GPL source-availability details.
+
+extra:
+  recipe-maintainers:
+    - PozzettiAndrea

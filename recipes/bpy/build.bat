@@ -1,0 +1,61 @@
+@echo off
+REM Build bpy (Blender as a Python module) from source on Windows.
+REM
+REM Mirrors recipes/bpy/build.sh: fetch lib bundle via `make.bat update`,
+REM configure CMake with WITH_PYTHON_MODULE=ON pointed at conda's Python,
+REM build+install, then stage bpy\ into Library\Lib\site-packages\.
+setlocal enabledelayedexpansion
+
+set "PY_VER=%PKG_PYTHON_VERSION%"
+if "%PY_VER%"=="" set "PY_VER=%python%"
+
+set "PY_NODOT=%PY_VER:.=%"
+set "NPROC=%CPU_COUNT%"
+if "%NPROC%"=="" set "NPROC=%NUMBER_OF_PROCESSORS%"
+
+echo ==^> bpy build: python=%PY_VER% jobs=%NPROC% prefix=%PREFIX% src=%SRC_DIR%
+
+cd /d "%SRC_DIR%"
+
+echo ==^> Fetching Blender precompiled libs
+call make.bat update
+if errorlevel 1 exit /b 1
+
+set "INSTALL_DIR=%SRC_DIR%\_bpy_install"
+set "BUILD_DIR=%SRC_DIR%\_bpy_build"
+if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
+
+echo ==^> CMake configure
+cmake -S "%SRC_DIR%" -B "%BUILD_DIR%" -G Ninja ^
+    -DCMAKE_BUILD_TYPE=Release ^
+    -DCMAKE_INSTALL_PREFIX="%INSTALL_DIR%" ^
+    -DWITH_PYTHON_MODULE=ON ^
+    -DWITH_INSTALL_PORTABLE=ON ^
+    -DWITH_AUDASPACE=ON ^
+    -DWITH_INSTALL_COPYRIGHT=ON ^
+    -DPYTHON_VERSION="%PY_VER%" ^
+    -DPYTHON_ROOT_DIR="%PREFIX%" ^
+    -DPYTHON_EXECUTABLE="%PREFIX%\python.exe" ^
+    -DPYTHON_INCLUDE_DIR="%PREFIX%\include" ^
+    -DPYTHON_LIBRARY="%PREFIX%\libs\python%PY_NODOT%.lib"
+if errorlevel 1 exit /b 1
+
+echo ==^> CMake build + install
+cmake --build "%BUILD_DIR%" --target install -j%NPROC%
+if errorlevel 1 exit /b 1
+
+echo ==^> Stage bpy module into %PREFIX%\Lib\site-packages
+set "SITE_PACKAGES=%PREFIX%\Lib\site-packages"
+if not exist "%SITE_PACKAGES%" mkdir "%SITE_PACKAGES%"
+
+if exist "%INSTALL_DIR%\bpy" (
+    xcopy /E /I /Y "%INSTALL_DIR%\bpy" "%SITE_PACKAGES%\bpy"
+) else (
+    echo ERROR: %INSTALL_DIR%\bpy not found, dumping install dir for diagnosis:
+    dir /S /B "%INSTALL_DIR%" | more /e +200
+    exit /b 1
+)
+
+echo ==^> Done.
+dir "%SITE_PACKAGES%\bpy"

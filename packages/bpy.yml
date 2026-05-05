@@ -1,0 +1,13 @@
+name: bpy
+source_repo: blender/blender
+# Pinned Blender tag that every build in this matrix uses.
+# Bump when moving to a newer LTS patch or a new Blender version.
+source_tag: "v4.2.20"
+
+free_disk_space: true
+
+build_matrix:
+  combinations:
+    - blender_version: "4.2.20"
+      python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+  platforms: ["linux", "windows", "osx-arm64"]
