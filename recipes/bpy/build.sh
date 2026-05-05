@@ -30,7 +30,15 @@ echo "==> Fetching Blender precompiled libs (this is the big one)"
 # checked out a detached HEAD at the tag — no upstream to pull from. Skip the
 # source update and only fetch the lib bundle + submodules via the underlying
 # make_update.py script.
-python ./build_files/utils/make_update.py --no-blender
+#
+# On Linux, the precompiled lib bundle is opt-in: make_update.py defaults to
+# "use system packages" and skips lib/linux_x64 unless --use-linux-libraries
+# is passed. On macOS the bundle is always fetched.
+EXTRA_UPDATE_ARGS=""
+if [[ "$(uname -s)" == "Linux" ]]; then
+    EXTRA_UPDATE_ARGS="--use-linux-libraries"
+fi
+python ./build_files/utils/make_update.py --no-blender $EXTRA_UPDATE_ARGS
 
 INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
