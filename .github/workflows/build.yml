@@ -82,6 +82,19 @@ jobs:
           sudo swapon /mnt/swapfile
           free -h
 
+      # Blender on Linux pulls in X11/Wayland system libs even with WITH_GHOST_*
+      # disabled — its lib bundle's USD/OpenSubdiv components have transitive
+      # X11 deps. Install the dev headers system-wide so CMake's find_package
+      # succeeds.
+      - name: Install Linux system deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libx11-dev libxxf86vm-dev libxcursor-dev libxi-dev libxrandr-dev \
+            libxinerama-dev libxkbcommon-dev libwayland-dev libegl-dev \
+            libdbus-1-dev libsm-dev libice-dev
+
       # ── rattler-build install ──
       - name: Install rattler-build (Linux)
         if: matrix.platform == 'linux'

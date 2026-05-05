@@ -49,8 +49,14 @@ requirements:
     # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads
-    # to ABI mismatches at link time. Keep host minimal; the bundle provides
-    # the rest of the C++ deps.
+    # to ABI mismatches at link time.
+    #
+    # EXCEPTION: libpng. Blender's bundle ships libpng 1.6.37 statically. The
+    # host tool `datatoc_icon` ends up linking against conda-forge's newer
+    # libpng (1.6.43+) headers vs the bundle's runtime — causing
+    # `Cannot setjmp` / `failed to read pixels` when building icon datafiles.
+    # Pin libpng to match the bundle.
+    - libpng 1.6.37.*
   run:
     - python ${{ python }}.*
     # Mirrors how the official PyPI bpy wheels behave: ships statically what it
