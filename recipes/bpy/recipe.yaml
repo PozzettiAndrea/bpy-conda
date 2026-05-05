@@ -24,30 +24,24 @@ build:
 
 requirements:
   build:
+    # Common across all platforms — Blender's make update wants git+git-lfs+svn
+    # for fetching the precompiled lib bundle.
+    - cmake >=3.28
+    - ninja
+    - git
+    - git-lfs
+    - subversion
     - if: linux
       then:
         - ${{ compiler('c') }}
         - ${{ compiler('cxx') }}
-        - ${{ stdlib('c') }}
-        - cmake >=3.28
-        - ninja
         - make
-        - subversion
         - patchelf
     - if: osx
       then:
         - ${{ compiler('c') }}
         - ${{ compiler('cxx') }}
-        - ${{ stdlib('c') }}
-        - cmake >=3.28
-        - ninja
         - make
-        - subversion
-    - if: win
-      then:
-        - cmake >=3.28
-        - ninja
-        - subversion
   host:
     - python ${{ python }}.*
     - pip

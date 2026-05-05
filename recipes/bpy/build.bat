@@ -6,8 +6,10 @@ REM configure CMake with WITH_PYTHON_MODULE=ON pointed at conda's Python,
 REM build+install, then stage bpy\ into Library\Lib\site-packages\.
 setlocal enabledelayedexpansion
 
-set "PY_VER=%PKG_PYTHON_VERSION%"
-if "%PY_VER%"=="" set "PY_VER=%python%"
+REM rattler-build auto-sets PY_VER (e.g. "3.12") when python is in host reqs.
+if "%PY_VER%"=="" (
+    echo ERROR: PY_VER not set & exit /b 1
+)
 
 set "PY_NODOT=%PY_VER:.=%"
 set "NPROC=%CPU_COUNT%"
@@ -18,7 +20,8 @@ echo ==^> bpy build: python=%PY_VER% jobs=%NPROC% prefix=%PREFIX% src=%SRC_DIR%
 cd /d "%SRC_DIR%"
 
 echo ==^> Fetching Blender precompiled libs
-call make.bat update
+REM Skip git pull (rattler-build uses detached HEAD); only fetch libs/submodules.
+python build_files\utils\make_update.py --no-blender
 if errorlevel 1 exit /b 1
 
 set "INSTALL_DIR=%SRC_DIR%\_bpy_install"
@@ -31,6 +34,7 @@ cmake -S "%SRC_DIR%" -B "%BUILD_DIR%" -G Ninja ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DCMAKE_INSTALL_PREFIX="%INSTALL_DIR%" ^
     -DWITH_PYTHON_MODULE=ON ^
+    -DWITH_PYTHON_INSTALL=OFF ^
     -DWITH_INSTALL_PORTABLE=ON ^
     -DWITH_AUDASPACE=ON ^
     -DWITH_INSTALL_COPYRIGHT=ON ^

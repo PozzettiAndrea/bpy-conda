@@ -14,9 +14,11 @@
 #    what lets us produce a 3.10/3.12/3.14 build off the same source.
 #  - Disk-space and memory pressure on GH runners is real; the workflow adds
 #    swap and runs the free-disk-space action before invoking this script.
-set -euo pipefail
+set -eo pipefail
 
-PY_VER="${PKG_PYTHON_VERSION:-${python}}"
+# rattler-build auto-exports PY_VER (e.g. "3.12") and CPU_COUNT when python is
+# in host requirements. Avoid `set -u` because some optional vars are unset.
+PY_VER="${PY_VER:?PY_VER not set — is python in host requirements?}"
 NPROC="${CPU_COUNT:-$(nproc 2>/dev/null || sysctl -n hw.ncpu)}"
 
 echo "==> bpy build: python=$PY_VER  jobs=$NPROC  prefix=$PREFIX  src=$SRC_DIR"
@@ -24,9 +26,11 @@ echo "==> bpy build: python=$PY_VER  jobs=$NPROC  prefix=$PREFIX  src=$SRC_DIR"
 cd "$SRC_DIR"
 
 echo "==> Fetching Blender precompiled libs (this is the big one)"
-# `make update` resolves to a wrapper around `python build_files/utils/make_update.py`
-# which detects the host platform and svn-checks-out lib/<platform>/.
-make update
+# `make update` would also `git pull --rebase` Blender source, but rattler-build
+# checked out a detached HEAD at the tag — no upstream to pull from. Skip the
+# source update and only fetch the lib bundle + submodules via the underlying
+# make_update.py script.
+python ./build_files/utils/make_update.py --no-blender
 
 INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
@@ -37,6 +41,7 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
     -DWITH_PYTHON_MODULE=ON \
+    -DWITH_PYTHON_INSTALL=OFF \
     -DWITH_INSTALL_PORTABLE=ON \
     -DWITH_AUDASPACE=ON \
     -DWITH_INSTALL_COPYRIGHT=ON \
