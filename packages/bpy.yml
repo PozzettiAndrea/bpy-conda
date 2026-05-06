@@ -1,9 +1,8 @@
 name: bpy
 source_repo: blender/blender
-# Current Blender stable — matches what `pip install bpy` ships today.
-# 5.x is built against modern toolchains so the recipe (recipes/bpy/) is
-# clean. For the older 4.2 LTS line with compiler-strictness patches see
-# packages/bpy_lts.yml + recipes/bpy_lts/.
+# Current Blender stable. Blender 5.1 requires Python >= 3.13 (CMakeLists
+# enforces it), so this matrix only targets 3.13 and 3.14. For Python
+# 3.10/3.11/3.12 use packages/bpy_lts.yml (Blender 4.2 LTS).
 source_tag: "v5.1.1"
 
 free_disk_space: true
@@ -11,5 +10,5 @@ free_disk_space: true
 build_matrix:
   combinations:
     - blender_version: "5.1.1"
-      python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+      python_versions: ["3.13", "3.14"]
   platforms: ["linux", "windows", "osx-arm64"]

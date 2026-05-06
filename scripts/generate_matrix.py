@@ -15,7 +15,11 @@ import yaml
 PLATFORM_MAP = {
     "linux": {"runner": "ubuntu-22.04", "subdir": "linux-64"},
     "windows": {"runner": "windows-2022", "subdir": "win-64"},
-    "osx-arm64": {"runner": "macos-14", "subdir": "osx-arm64"},
+    # macos-15 (Xcode 16+) — required by Blender 5.1's CMake. macos-14
+    # only has Xcode 15.4 and Blender 5.1's platform_apple.cmake rejects
+    # it with "Only Xcode version 16.0 and newer is supported". 4.2 LTS
+    # works on macos-15 too (older Blender on newer Xcode is fine).
+    "osx-arm64": {"runner": "macos-15", "subdir": "osx-arm64"},
 }
 
 
