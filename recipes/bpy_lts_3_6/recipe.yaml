@@ -50,8 +50,13 @@ requirements:
         - patchelf
     - if: osx
       then:
-        - ${{ compiler('c') }}
-        - ${{ compiler('cxx') }}
+        # Pin clang <22 on macOS — clang 22 added strict constexpr enforcement
+        # for non-type template arguments which Blender 3.6's bundled Boost 1.x
+        # (boost/mpl/aux_/integral_wrapper.hpp) doesn't satisfy. Older clangs
+        # accepted the same templates fine. Bypassing compiler() macro since
+        # we want an explicit version constraint.
+        - clang_osx-arm64 <22
+        - clangxx_osx-arm64 <22
         - make
     - if: win
       then:

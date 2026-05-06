@@ -82,14 +82,11 @@ INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
 mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
 
-# Linux: conda's compiler is sandboxed to its own sysroot — system /usr/include
-# is not searched by default. The workflow apt-installs libegl-dev / libgl-dev
-# / libx11-dev there. Add /usr/include as a system include path so the
-# compiler finds EGL/eglplatform.h, X11/X.h, GL/gl.h etc.
-if [[ "$(uname -s)" == "Linux" ]]; then
-    export CXXFLAGS="${CXXFLAGS:-} -isystem /usr/include"
-    export CFLAGS="${CFLAGS:-} -isystem /usr/include"
-fi
+# Linux: rely on conda host packages for X11/EGL/GL headers (xorg-libx11,
+# mesa-libegl-cos7-x86_64, etc. in recipe.yaml host). The earlier
+# `-isystem /usr/include` workaround caused system glibc 2.39's malloc.h
+# to win over conda sysroot 2.28's, breaking guardedalloc compile because
+# `__attribute_alloc_align__` macros were undefined.
 
 echo "==> CMake configure"
 # macOS: pin SDK + archive tools.
