@@ -1,13 +1,15 @@
 name: bpy
 source_repo: blender/blender
-# Pinned Blender tag that every build in this matrix uses.
-# Bump when moving to a newer LTS patch or a new Blender version.
-source_tag: "v4.2.20"
+# Pinned Blender tag. v5.1.1 is the current stable (matches PyPI bpy 5.1.1)
+# and has been kept building against current toolchains (clang 22, MSVC 14.44).
+# v4.2.20 (LTS) was tried first but its 2024-era bundled libs (TBB, USD,
+# freetype) hit compatibility errors with 2026 compilers.
+source_tag: "v5.1.1"
 
 free_disk_space: true
 
 build_matrix:
   combinations:
-    - blender_version: "4.2.20"
+    - blender_version: "5.1.1"
       python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
   platforms: ["linux", "windows", "osx-arm64"]
