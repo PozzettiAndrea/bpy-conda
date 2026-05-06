@@ -164,8 +164,27 @@ jobs:
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          pip install "anaconda-client<1.14"
-          find output/ -name "*.conda" -exec anaconda upload --force {} \;
+          set -euo pipefail
+          # Pin setuptools<81 — newer versions drop pkg_resources which
+          # anaconda-client < 1.14 still imports.
+          pip install "anaconda-client<1.14" "setuptools<81"
+          if [[ -z "${ANACONDA_API_TOKEN:-}" ]]; then
+            echo "::warning::ANACONDA_TOKEN not set — skipping upload (artifact still uploaded as GHA artifact)"
+            exit 0
+          fi
+          # Loop with explicit error propagation; `find -exec ... \;` swallows
+          # individual command failures.
+          shopt -s globstar nullglob
+          uploaded=0
+          for f in output/**/*.conda; do
+            echo "==> Uploading $f"
+            anaconda upload --force "$f"
+            uploaded=$((uploaded+1))
+          done
+          if [[ $uploaded -eq 0 ]]; then
+            echo "::error::No .conda artifacts found to upload"
+            exit 1
+          fi
 
       - name: Upload to anaconda.org (Windows)
         if: success() && matrix.platform == 'windows'
@@ -173,8 +192,22 @@ jobs:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           pip install "anaconda-client<1.14" "setuptools<81"
-          Get-ChildItem -Recurse -Filter "*.conda" output/ | ForEach-Object { anaconda upload --force $_.FullName }
+          if (-not $env:ANACONDA_API_TOKEN) {
+            Write-Host "::warning::ANACONDA_TOKEN not set — skipping upload"
+            exit 0
+          }
+          $files = Get-ChildItem -Recurse -Filter "*.conda" output/
+          if ($files.Count -eq 0) {
+            Write-Host "::error::No .conda artifacts found to upload"
+            exit 1
+          }
+          foreach ($f in $files) {
+            Write-Host "==> Uploading $($f.FullName)"
+            anaconda upload --force $f.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - name: Upload artifact
         if: always()
