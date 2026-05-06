@@ -19,6 +19,12 @@ echo ==^> bpy build: python=%PY_VER% jobs=%NPROC% prefix=%PREFIX% src=%SRC_DIR%
 
 cd /d "%SRC_DIR%"
 
+REM rattler-build's git: source fetch doesn't pull LFS objects; Blender stores
+REM icon datafiles in LFS so we need to materialize them before make_update.
+echo ==^> Pulling git-lfs objects
+call git lfs install --local
+call git lfs pull
+
 echo ==^> Fetching Blender precompiled libs
 REM Skip git pull (rattler-build uses detached HEAD); only fetch libs/submodules.
 python build_files\utils\make_update.py --no-blender

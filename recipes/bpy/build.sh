@@ -25,6 +25,14 @@ echo "==> bpy build: python=$PY_VER  jobs=$NPROC  prefix=$PREFIX  src=$SRC_DIR"
 
 cd "$SRC_DIR"
 
+# rattler-build's `git:` source fetch does NOT pull git-lfs objects. Blender
+# stores binary icon datafiles (release/datafiles/blender_icons*/) in LFS, so
+# without this the DAT files are pointer text files and `datatoc_icon` fails
+# with "failed to read pixels" / "dir has no icons" during compile.
+echo "==> Pulling git-lfs objects"
+git lfs install --local
+git lfs pull
+
 echo "==> Fetching Blender precompiled libs (this is the big one)"
 # `make update` would also `git pull --rebase` Blender source, but rattler-build
 # checked out a detached HEAD at the tag — no upstream to pull from. Skip the
@@ -45,6 +53,18 @@ BUILD_DIR="$SRC_DIR/_bpy_build"
 mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
 
 echo "==> CMake configure"
+# On macOS, force CMake to use conda-forge's SDK rather than letting Blender's
+# platform_apple.cmake auto-detect via xcrun (which picks up the host CLT SDK
+# — that's how SDK 26 sneaks in when host machines have it). The conda
+# compiler activation sets CONDA_BUILD_SYSROOT to e.g. .../MacOSX11.0.sdk.
+OSX_FLAGS=()
+if [[ "$(uname -s)" == "Darwin" && -n "${CONDA_BUILD_SYSROOT:-}" ]]; then
+    OSX_FLAGS+=(
+        "-DCMAKE_OSX_SYSROOT=$CONDA_BUILD_SYSROOT"
+        "-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+    )
+fi
+
 cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
@@ -57,7 +77,8 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
     -DPYTHON_ROOT_DIR="$PREFIX" \
     -DPYTHON_EXECUTABLE="$PREFIX/bin/python$PY_VER" \
     -DPYTHON_INCLUDE_DIR="$PREFIX/include/python${PY_VER}" \
-    -DPYTHON_LIBRARY="$PREFIX/lib/libpython${PY_VER}.so"
+    -DPYTHON_LIBRARY="$PREFIX/lib/libpython${PY_VER}.so" \
+    "${OSX_FLAGS[@]}"
 
 echo "==> CMake build + install"
 cmake --build "$BUILD_DIR" --target install -j"$NPROC"

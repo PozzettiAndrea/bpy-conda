@@ -50,13 +50,20 @@ requirements:
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads
     # to ABI mismatches at link time.
-    #
-    # EXCEPTION: libpng. Blender's bundle ships libpng 1.6.37 statically. The
-    # host tool `datatoc_icon` ends up linking against conda-forge's newer
-    # libpng (1.6.43+) headers vs the bundle's runtime — causing
-    # `Cannot setjmp` / `failed to read pixels` when building icon datafiles.
-    # Pin libpng to match the bundle.
-    - libpng 1.6.37.*
+    - if: linux
+      then:
+        # X11 dev headers — conda's sysroot isolates the build from system
+        # /usr/include and /usr/lib, so apt-installed X11 isn't visible to
+        # CMake. Pull the dev libs in as conda packages instead.
+        - xorg-libx11
+        - xorg-libxext
+        - xorg-libxxf86vm
+        - xorg-libxcursor
+        - xorg-libxi
+        - xorg-libxrandr
+        - xorg-libxinerama
+        - libxkbcommon-cos7-x86_64
+        - dbus
   run:
     - python ${{ python }}.*
     # Mirrors how the official PyPI bpy wheels behave: ships statically what it
