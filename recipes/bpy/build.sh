@@ -67,6 +67,24 @@ case "$(uname -s)-$(uname -m)" in
     Darwin-x86_64) LIB_PLATFORM="macos_x64" ;;
 esac
 TBB_TASK_H="$SRC_DIR/lib/$LIB_PLATFORM/tbb/include/tbb/task.h"
+# Patch freetype config — Blender's bundle ships libfreetype.a alongside
+# libbrotlicommon-static.a but the freetype headers don't define
+# FT_CONFIG_OPTION_USE_BROTLI, so Blender's check_freetype_for_brotli fails
+# with "Freetype needs to be compiled with brotli support!". Define the macro
+# so the check passes; the bundled .a does have brotli code linked in.
+if [[ -n "$LIB_PLATFORM" ]]; then
+    FT_OPTION_H="$SRC_DIR/lib/$LIB_PLATFORM/freetype/include/freetype2/freetype/config/ftoption.h"
+    if [[ -f "$FT_OPTION_H" ]] && ! grep -q '^#define FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
+        echo "==> Patching freetype ftoption.h to define FT_CONFIG_OPTION_USE_BROTLI"
+        # Replace the commented-out form if it exists, else append.
+        if grep -q 'FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
+            sed -i.bak 's|/\* *#define FT_CONFIG_OPTION_USE_BROTLI *\*/|#define FT_CONFIG_OPTION_USE_BROTLI|' "$FT_OPTION_H"
+        else
+            printf '\n#define FT_CONFIG_OPTION_USE_BROTLI\n' >> "$FT_OPTION_H"
+        fi
+    fi
+fi
+
 if [[ -n "$LIB_PLATFORM" && -f "$TBB_TASK_H" ]]; then
     echo "==> Patching TBB header for clang 22 strictness"
     # All `static const kind_type X = kind_type(Y+1);` declarations produce
@@ -167,6 +185,7 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
     -DWITH_AUDASPACE=ON \
     -DWITH_INSTALL_COPYRIGHT=ON \
     -DWITH_XR_OPENXR=OFF \
+    -DWITH_USD=OFF \
     -DPYTHON_VERSION="$PY_VER" \
     -DPYTHON_ROOT_DIR="$PREFIX" \
     -DPYTHON_EXECUTABLE="$PREFIX/bin/python$PY_VER" \
