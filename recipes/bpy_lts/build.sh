@@ -235,5 +235,19 @@ elif [ -d "$INSTALL_DIR" ]; then
     cp -R "$BPY_PATH" "$SITE_PACKAGES/"
 fi
 
+# Strip bundled OpenMP runtime so the env-provided one (llvm-openmp /
+# libgomp from conda-forge) wins. Bundled libomp inside bpy/lib/ has
+# higher priority via $ORIGIN/lib rpath and would override the env's
+# version, re-introducing the "OMP: Error #15: libiomp5 already
+# initialized" clash with numpy-MKL. Conda-forge convention: one
+# OpenMP runtime per env, mediated by `_openmp_mutex`.
+BPY_LIB="$SITE_PACKAGES/bpy/lib"
+if [ -d "$BPY_LIB" ]; then
+    echo "==> Stripping bundled OpenMP runtimes from $BPY_LIB"
+    find "$BPY_LIB" \( -name 'libomp.so*' -o -name 'libomp.dylib' \
+                    -o -name 'libgomp.so*' -o -name 'libiomp5.so*' \
+                    -o -name 'libiomp5.dylib' \) -print -delete || true
+fi
+
 echo "==> Done. Contents of site-packages/bpy:"
 ls -la "$SITE_PACKAGES/bpy" | head -20

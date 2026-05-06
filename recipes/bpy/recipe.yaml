@@ -96,8 +96,20 @@ requirements:
         - mesa-libegl-devel-cos7-x86_64
   run:
     - python ${{ python }}.*
-    # Mirrors how the official PyPI bpy wheels behave: ships statically what it
-    # needs, depends only on Python at runtime.
+    # OpenMP runtime is NOT bundled (build.sh strips libomp.so* / libomp.dylib
+    # from bpy/lib/ during staging). This matches the conda-forge convention:
+    # one OpenMP runtime per env, mediated by `_openmp_mutex`. Pulling the same
+    # llvm-openmp / vc14_runtime that conda-forge numpy depends on prevents
+    # the classic "OMP: Error #15: libiomp5 already initialized" clash with
+    # numpy-MKL.
+    - if: not win
+      then:
+        - llvm-openmp
+    - if: win
+      then:
+        # MSVC-built bpy.pyd uses vcomp140.dll which ships in vc14_runtime;
+        # vc14_runtime is already pulled in transitively via python on Windows.
+        - vc14_runtime
 
 about:
   homepage: https://www.blender.org/
@@ -117,13 +129,39 @@ about:
 
 tests:
   # rattler-build creates a FRESH env with only python + this package's run
-  # deps, then runs `import bpy`. The build env (with cmake, ninja, MSVC,
-  # numpy/pip/setuptools host pins, etc.) is NOT inherited — so a missing
-  # DSO or DLL surfaces here, exactly as it would for an end user.
+  # deps. The build env (with cmake, ninja, MSVC, numpy/pip/setuptools
+  # host pins, etc.) is NOT inherited — so a missing DSO or DLL surfaces
+  # here exactly as it would for an end user.
+
+  # 1. Bare module import — fast, catches missing-DSO / DLL-load failures.
   - python:
       imports:
         - bpy
       python_version: ${{ python }}
+
+  # 2. import-with-numpy — catches OpenMP-runtime clashes that only show
+  # up when bpy AND numpy are loaded in the same process. With
+  # `_openmp_mutex` enforcing a single OpenMP runtime per env this passes;
+  # if it fails with "OMP: Error #15: libiomp5 already initialized" we've
+  # still got bundled libomp leaking in.
+  - script:
+      - python -c "import numpy; import bpy; print('OK both', bpy.app.version_string)"
+    requirements:
+      run:
+        - python ${{ python }}.*
+        - numpy
+
+  # 3. Light API smoke (mathutils / idprop / bmesh / bpy.app) — adapted
+  # from Blender's tests/python/bl_pyapi_*.py suite, stripped of the
+  # Blender-CLI-argv parts. See tests/smoke_api.py for the actual checks.
+  - script:
+      - python tests/smoke_api.py
+    files:
+      source:
+        - tests/smoke_api.py
+    requirements:
+      run:
+        - python ${{ python }}.*
 
 extra:
   recipe-maintainers:

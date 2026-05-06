@@ -80,5 +80,11 @@ if exist "%INSTALL_DIR%\bpy" (
     exit /b 1
 )
 
+REM Strip bundled OpenMP runtime — see recipes/bpy/build.bat for rationale.
+echo ==^> Stripping bundled OpenMP runtimes from bpy\
+del /F /Q "%SITE_PACKAGES%\bpy\vcomp*.dll" 2>nul
+del /F /Q "%SITE_PACKAGES%\bpy\libomp.dll" 2>nul
+del /F /Q "%SITE_PACKAGES%\bpy\libiomp5md.dll" 2>nul
+
 echo ==^> Done.
 dir "%SITE_PACKAGES%\bpy"
