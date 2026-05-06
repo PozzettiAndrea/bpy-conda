@@ -63,10 +63,21 @@ echo "==> CMake configure"
 # — that's how SDK 26 sneaks in when host machines have it). The conda
 # compiler activation sets CONDA_BUILD_SYSROOT to e.g. .../MacOSX11.0.sdk.
 OSX_FLAGS=()
-if [[ "$(uname -s)" == "Darwin" && -n "${CONDA_BUILD_SYSROOT:-}" ]]; then
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    if [[ -n "${CONDA_BUILD_SYSROOT:-}" ]]; then
+        OSX_FLAGS+=(
+            "-DCMAKE_OSX_SYSROOT=$CONDA_BUILD_SYSROOT"
+            "-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+        )
+    fi
+    # Pin archive tools to conda-forge cctools wrappers — without this, some
+    # intermediate static libs end up in GNU ar format and the macOS linker
+    # rejects them with "unknown-unsupported file format ( 0x21 0x3C ... )".
+    # $AR / $RANLIB / $LIBTOOL come from the conda compiler activation script.
     OSX_FLAGS+=(
-        "-DCMAKE_OSX_SYSROOT=$CONDA_BUILD_SYSROOT"
-        "-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+        "-DCMAKE_AR=${AR:-$BUILD_PREFIX/bin/$HOST-ar}"
+        "-DCMAKE_RANLIB=${RANLIB:-$BUILD_PREFIX/bin/$HOST-ranlib}"
+        "-DCMAKE_LIBTOOL=${LIBTOOL:-$BUILD_PREFIX/bin/$HOST-libtool}"
     )
 fi
 
