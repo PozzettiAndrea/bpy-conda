@@ -73,11 +73,31 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     # Pin archive tools to conda-forge cctools wrappers — without this, some
     # intermediate static libs end up in GNU ar format and the macOS linker
     # rejects them with "unknown-unsupported file format ( 0x21 0x3C ... )".
-    # $AR / $RANLIB / $LIBTOOL come from the conda compiler activation script.
+    # Pick the first that exists; HOST/AR may be unset depending on activation.
+    pick_tool() {
+        local name="$1"; shift
+        for cand in "$@"; do
+            if [[ -x "$cand" ]]; then echo "$cand"; return; fi
+        done
+        # Last resort: rely on PATH; CMake will fail explicitly if missing.
+        echo "$name"
+    }
+    AR_BIN="$(pick_tool ar \
+        "${AR:-}" \
+        "$BUILD_PREFIX/bin/arm64-apple-darwin20.0.0-ar" \
+        "$BUILD_PREFIX/bin/llvm-ar")"
+    RANLIB_BIN="$(pick_tool ranlib \
+        "${RANLIB:-}" \
+        "$BUILD_PREFIX/bin/arm64-apple-darwin20.0.0-ranlib" \
+        "$BUILD_PREFIX/bin/llvm-ranlib")"
+    LIBTOOL_BIN="$(pick_tool libtool \
+        "${LIBTOOL:-}" \
+        "$BUILD_PREFIX/bin/arm64-apple-darwin20.0.0-libtool")"
+    echo "==> AR=$AR_BIN  RANLIB=$RANLIB_BIN  LIBTOOL=$LIBTOOL_BIN"
     OSX_FLAGS+=(
-        "-DCMAKE_AR=${AR:-$BUILD_PREFIX/bin/$HOST-ar}"
-        "-DCMAKE_RANLIB=${RANLIB:-$BUILD_PREFIX/bin/$HOST-ranlib}"
-        "-DCMAKE_LIBTOOL=${LIBTOOL:-$BUILD_PREFIX/bin/$HOST-libtool}"
+        "-DCMAKE_AR=$AR_BIN"
+        "-DCMAKE_RANLIB=$RANLIB_BIN"
+        "-DCMAKE_LIBTOOL=$LIBTOOL_BIN"
     )
 fi
 
