@@ -68,14 +68,17 @@ case "$(uname -s)-$(uname -m)" in
 esac
 TBB_TASK_H="$SRC_DIR/lib/$LIB_PLATFORM/tbb/include/tbb/task.h"
 
-# Remove bundle's old Boost headers on macOS so the conda-forge libboost-devel
-# (~1.86) wins. Bundle Boost ~1.78 has MPL templates that don't satisfy
-# clang 22+'s strict constexpr enforcement on non-type template arguments.
-# Header-only swap — bundle's compiled libboost_*.dylib stays for any
-# other lib that links against it.
-if [[ "$(uname -s)" == "Darwin" && -d "$SRC_DIR/lib/$LIB_PLATFORM/boost/include" ]]; then
-    echo "==> Removing bundle Boost include dir (using conda-forge libboost-devel instead)"
-    mv "$SRC_DIR/lib/$LIB_PLATFORM/boost/include" "$SRC_DIR/lib/$LIB_PLATFORM/boost/include.bundled-disabled"
+# Remove the bundle's WHOLE Boost dir (not just boost/include) on macOS so
+# Blender's platform_apple.cmake `if(EXISTS ${LIBDIR}/boost)` check fails
+# and CMake falls through to find_package(Boost) honouring our
+# -DBOOST_ROOT=$PREFIX hint pointing at conda-forge libboost-devel (~1.86,
+# which has the constexpr fixes that bundle Boost ~1.78 lacks). The
+# bundle's compiled libboost_python.dylib etc. would no longer be linkable
+# from this build, but Blender's targets that need them get rebuilt
+# against the conda-forge ones since headers come from $PREFIX too.
+if [[ "$(uname -s)" == "Darwin" && -d "$SRC_DIR/lib/$LIB_PLATFORM/boost" ]]; then
+    echo "==> Renaming bundle Boost dir so platform_apple.cmake's EXISTS check fails"
+    mv "$SRC_DIR/lib/$LIB_PLATFORM/boost" "$SRC_DIR/lib/$LIB_PLATFORM/boost.bundled-disabled"
 fi
 # Patch freetype config — Blender's bundle ships libfreetype.a alongside
 # libbrotlicommon-static.a but the freetype headers don't define
