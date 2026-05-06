@@ -42,6 +42,11 @@ set "BUILD_DIR=%SRC_DIR%\_bpy_build"
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
+REM MSVC 14.44 added warning C5287 "operands are different enum types" which
+REM Blender 3.6's BKE_customdata.h triggers (CD_FAKE enum vs eCustomDataType).
+REM Blender uses /WX so warning → error. Disable just C5287.
+set "CL=/wd5287 %CL%"
+
 echo ==^> CMake configure
 cmake -S "%SRC_DIR%" -B "%BUILD_DIR%" -G Ninja ^
     -DCMAKE_BUILD_TYPE=Release ^
