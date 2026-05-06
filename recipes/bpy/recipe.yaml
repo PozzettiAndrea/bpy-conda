@@ -68,10 +68,14 @@ requirements:
         - xorg-libxinerama
         - libxkbcommon-cos7-x86_64
         - dbus
-        # OpenGL headers — Blender's bundled OpenSubdiv #include's GL/gl.h
-        # via opensubdiv/osd/opengl.h. Same sysroot-isolation issue as X11.
+        # OpenGL + EGL headers — Blender's bundled OpenSubdiv pulls in GL/gl.h,
+        # and ghost/XR uses EGL/eglplatform.h. Same sysroot-isolation issue as
+        # X11 — apt-installed system libs aren't visible inside the conda
+        # sysroot.
         - mesa-libgl-cos7-x86_64
         - mesa-libgl-devel-cos7-x86_64
+        - mesa-libegl-cos7-x86_64
+        - mesa-libegl-devel-cos7-x86_64
   run:
     - python ${{ python }}.*
     # Mirrors how the official PyPI bpy wheels behave: ships statically what it
