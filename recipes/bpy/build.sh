@@ -69,9 +69,26 @@ esac
 TBB_TASK_H="$SRC_DIR/lib/$LIB_PLATFORM/tbb/include/tbb/task.h"
 if [[ -n "$LIB_PLATFORM" && -f "$TBB_TASK_H" ]]; then
     echo "==> Patching TBB header for clang 22 strictness"
-    sed -i.bak 's|static const kind_type binding_completed = kind_type(bound+1);|static const int binding_completed = static_cast<int>(bound) + 1;|g' "$TBB_TASK_H" || true
-    # Also handle the variant we may have produced from a previous run
-    sed -i.bak 's|kind_type(int(bound)+1)|static_cast<int>(bound) + 1|g' "$TBB_TASK_H" || true
+    # All `static const kind_type X = kind_type(Y+1);` declarations produce
+    # values outside the kind_type enum range. Rewrite each to int.
+    python - "$TBB_TASK_H" <<'PYEOF'
+import re, sys, pathlib
+p = pathlib.Path(sys.argv[1])
+s = p.read_text()
+new = re.sub(
+    r'static const kind_type (\w+)\s*=\s*kind_type\((\w+)\s*\+\s*1\);',
+    r'static const int \1 = static_cast<int>(\2) + 1;',
+    s,
+)
+# Also undo the previous half-patched form if present.
+new = re.sub(
+    r'static const kind_type (\w+)\s*=\s*kind_type\(int\((\w+)\)\s*\+\s*1\);',
+    r'static const int \1 = static_cast<int>(\2) + 1;',
+    new,
+)
+p.write_text(new)
+print(f"==> Patched {sum(1 for _ in re.finditer(r'static const int \\w+ = static_cast<int>', new))} kind_type sentinels")
+PYEOF
 fi
 
 INSTALL_DIR="$SRC_DIR/_bpy_install"
