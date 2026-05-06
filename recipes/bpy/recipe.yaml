@@ -1,7 +1,11 @@
 context:
   name: bpy
   version: ${{ blender_version }}
-  source_repo: "blender/blender"
+  # Use Blender's official Gitea (projects.blender.org), not the GitHub mirror.
+  # The GitHub mirror does not host git-lfs objects — Blender's icon DAT files
+  # and other binary assets live in LFS only on the Gitea origin. Cloning from
+  # GitHub + git lfs pull yields "remote missing object" errors.
+  source_url: "https://projects.blender.org/blender/blender.git"
   source_tag: "v${{ blender_version }}"
   py_short: ${{ python | replace('.', '') }}
 
@@ -10,7 +14,7 @@ package:
   version: ${{ version }}
 
 source:
-  git: https://github.com/${{ source_repo }}.git
+  git: ${{ source_url }}
   tag: ${{ source_tag }}
   # Blender's tree contains submodules (addons, dev tools); we don't need a deep
   # history but `make update` will fetch the precompiled lib bundle separately.
