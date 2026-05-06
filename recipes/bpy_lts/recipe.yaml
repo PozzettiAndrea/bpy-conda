@@ -62,6 +62,8 @@ requirements:
     - python ${{ python }}.*
     - pip
     - setuptools
+    # Audaspace's Python bindings #include <numpy/ndarrayobject.h>.
+    - numpy
     # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads
