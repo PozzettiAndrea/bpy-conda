@@ -126,10 +126,13 @@ INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
 mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
 
-# Linux: rely on conda host packages for X11/EGL/GL headers (xorg-libx11,
-# mesa-libegl-cos7-x86_64, etc.) instead of `-isystem /usr/include` which
-# caused system glibc 2.39's malloc.h to mismatch conda sysroot 2.28's
-# <sys/cdefs.h>.
+# Linux: -idirafter /usr/include — fallback include path. Conda sysroot
+# headers (e.g. malloc.h) win over system; system /usr/include is only
+# consulted for headers sysroot lacks (GL/gl.h, X11/X.h, EGL/eglplatform.h).
+if [[ "$(uname -s)" == "Linux" ]]; then
+    export CXXFLAGS="${CXXFLAGS:-} -idirafter /usr/include"
+    export CFLAGS="${CFLAGS:-} -idirafter /usr/include"
+fi
 
 # On macOS, suppress clang 22's hard error on TBB's
 # `kind_type binding_completed = kind_type(bound+1)` — the enum-overflow is

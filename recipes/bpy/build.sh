@@ -82,11 +82,17 @@ INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
 mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
 
-# Linux: rely on conda host packages for X11/EGL/GL headers (xorg-libx11,
-# mesa-libegl-cos7-x86_64, etc. in recipe.yaml host). The earlier
-# `-isystem /usr/include` workaround caused system glibc 2.39's malloc.h
-# to win over conda sysroot 2.28's, breaking guardedalloc compile because
-# `__attribute_alloc_align__` macros were undefined.
+# Linux: add /usr/include as a *last-resort* search path via -idirafter.
+# `-isystem /usr/include` (what we had earlier) puts /usr/include BEFORE
+# conda's sysroot, so system glibc 2.39's malloc.h wins → breaks
+# guardedalloc with undefined `__attribute_alloc_align__`. `-idirafter`
+# puts it LAST, so conda sysroot's malloc.h wins; /usr/include is only
+# consulted for headers the sysroot doesn't have (GL/gl.h, X11/X.h,
+# EGL/eglplatform.h from apt-installed system dev libs).
+if [[ "$(uname -s)" == "Linux" ]]; then
+    export CXXFLAGS="${CXXFLAGS:-} -idirafter /usr/include"
+    export CFLAGS="${CFLAGS:-} -idirafter /usr/include"
+fi
 
 echo "==> CMake configure"
 # macOS: pin SDK + archive tools.
