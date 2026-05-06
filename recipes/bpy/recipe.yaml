@@ -60,6 +60,10 @@ requirements:
     - python ${{ python }}.*
     - pip
     - setuptools
+    # Blender's bundled freetype was built with brotli support; CMake's
+    # check_freetype_for_brotli runs a link test that needs libbrotli at
+    # build/link time, even though the bundled freetype statically embeds it.
+    - brotli
     # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads
