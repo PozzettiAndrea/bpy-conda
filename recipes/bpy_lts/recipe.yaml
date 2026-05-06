@@ -80,7 +80,10 @@ requirements:
         - xorg-libxi
         - xorg-libxrandr
         - xorg-libxinerama
-        - xorg-xproto              # provides X11/X.h
+        # Note: not adding xorg-xproto (it ships an OLDER Xfuncproto.h that
+        # doesn't define _X_NONSTRING, and mixes badly with system's newer
+        # X11/extensions/XKBstr.h which uses that macro). System's libx11-dev
+        # via apt provides X11/X.h consistently with its other X11 headers.
         - libxkbcommon-cos7-x86_64
         - dbus
         # OpenGL + EGL headers — Blender's bundled OpenSubdiv pulls in GL/gl.h,

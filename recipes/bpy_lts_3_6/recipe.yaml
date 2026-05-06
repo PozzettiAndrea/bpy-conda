@@ -96,7 +96,7 @@ requirements:
         - xorg-libxi
         - xorg-libxrandr
         - xorg-libxinerama
-        - xorg-xproto              # provides X11/X.h
+        # No xorg-xproto (conflicts with system X11 KB headers).
         - libxkbcommon-cos7-x86_64
         - dbus
         # OpenGL + EGL headers — Blender's bundled OpenSubdiv pulls in GL/gl.h,
