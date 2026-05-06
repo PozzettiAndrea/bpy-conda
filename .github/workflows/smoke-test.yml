@@ -90,20 +90,18 @@ jobs:
             libgl1 libegl1 libxkbcommon0 libxxf86vm1 libxfixes3 \
             libxi6 libxrender1 libxrandr2 libsm6
 
+      # Single-line `python -c` for both shells. PowerShell's pwsh in GHA
+      # doesn't honor multi-line strings inside `python -c "..."` the way
+      # bash does — it splits on newlines and tries to run `import` as a
+      # shell command. Single line dodges that.
       - name: Import bpy (Unix)
         if: matrix.platform != 'windows'
         shell: bash -el {0}
         run: |
-          python -c "
-          import bpy, sys
-          print('OK', bpy.app.version_string, '(Python', sys.version.split()[0] + ')')
-          "
+          python -c "import bpy, sys; print('OK', bpy.app.version_string, '(Python', sys.version.split()[0] + ')')"
 
       - name: Import bpy (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          micromamba run -n bpytest python -c "
-          import bpy, sys
-          print('OK', bpy.app.version_string, '(Python', sys.version.split()[0] + ')')
-          "
+          micromamba run -n bpytest python -c "import bpy, sys; print('OK', bpy.app.version_string, '(Python', sys.version.split()[0] + ')')"
