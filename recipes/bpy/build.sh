@@ -73,16 +73,14 @@ INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
 mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
 
-# On Linux, conda's sysroot doesn't expose system /usr/include, but the
-# workflow apt-installed EGL/GL/X11 headers there. Copy them into $PREFIX/include
-# so CMake (using conda's compiler with sysroot isolation) can find them.
+# On Linux, conda's compiler is sandboxed to its own sysroot — system
+# /usr/include is not searched by default. The workflow apt-installs
+# libegl-dev / libgl-dev / libx11-dev there. Add /usr/include as a
+# system include path so the compiler finds EGL/eglplatform.h etc.
+# without us having to vendor or copy headers around.
 if [[ "$(uname -s)" == "Linux" ]]; then
-    for hdr in EGL GL KHR; do
-        if [[ -d "/usr/include/$hdr" && ! -d "$PREFIX/include/$hdr" ]]; then
-            echo "==> Copying /usr/include/$hdr → \$PREFIX/include/$hdr"
-            cp -r "/usr/include/$hdr" "$PREFIX/include/"
-        fi
-    done
+    export CXXFLAGS="${CXXFLAGS:-} -isystem /usr/include"
+    export CFLAGS="${CFLAGS:-} -isystem /usr/include"
 fi
 
 # On macOS, suppress clang 22's hard error on TBB's
