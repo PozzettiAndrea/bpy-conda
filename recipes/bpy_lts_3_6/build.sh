@@ -68,18 +68,21 @@ case "$(uname -s)-$(uname -m)" in
 esac
 TBB_TASK_H="$SRC_DIR/lib/$LIB_PLATFORM/tbb/include/tbb/task.h"
 
-# Patch bundle Boost MPL integral_wrapper.hpp on macOS — clang 21+ rejects
-# Boost ~1.78's `kind_type(value - 1)` non-type template arguments as
-# non-constexpr. Boost 1.86 fixed this by wrapping in static_cast<long>.
-# Backport the same change. Keeps the bundle's libboost_python.dylib
-# usable (no ABI swap), avoids fighting Blender CMake's bundle detection.
+# Neutralize bundle Boost MPL prior/next typedefs on macOS. Attempt #6
+# (Boost 1.86's `static_cast<long>(value)` backport) didn't help — clang 21
+# still rejected the template argument as non-constexpr. The typedefs are
+# convenience iterator-protocol aliases that Cycles' image_vdb.cpp pulls
+# in via numeric/conversion but doesn't actually USE. Replace with harmless
+# `typedef int prior;` / `typedef int next;` so template instantiation
+# proceeds. If a downstream consumer of these turns up, we'll see a new
+# error and can iterate.
 if [[ "$(uname -s)" == "Darwin" ]]; then
     INTEGRAL_WRAPPER_H="$SRC_DIR/lib/$LIB_PLATFORM/boost/include/boost/mpl/aux_/integral_wrapper.hpp"
-    if [[ -f "$INTEGRAL_WRAPPER_H" ]] && ! grep -q 'static_cast<long>(value)' "$INTEGRAL_WRAPPER_H"; then
-        echo "==> Patching Boost MPL integral_wrapper.hpp for clang 21+ constexpr strictness"
+    if [[ -f "$INTEGRAL_WRAPPER_H" ]] && ! grep -q 'typedef int prior;' "$INTEGRAL_WRAPPER_H"; then
+        echo "==> Neutralizing Boost MPL prior/next typedefs (clang 21+ constexpr rejection)"
         sed -i.bak \
-            -e 's|(value - 1)|(static_cast<long>(value) - 1)|g' \
-            -e 's|(value + 1)|(static_cast<long>(value) + 1)|g' \
+            -e 's|typedef AUX_WRAPPER_INST.*prior;|typedef int prior;|' \
+            -e 's|typedef AUX_WRAPPER_INST.*next;|typedef int next;|' \
             "$INTEGRAL_WRAPPER_H"
     fi
 fi
