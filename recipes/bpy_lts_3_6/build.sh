@@ -73,19 +73,16 @@ TBB_TASK_H="$SRC_DIR/lib/$LIB_PLATFORM/tbb/include/tbb/task.h"
 # with "Freetype needs to be compiled with brotli support!". Define the macro
 # so the check passes; the bundled .a does have brotli code linked in.
 if [[ -n "$LIB_PLATFORM" ]]; then
-    # Find ftoption.h dynamically — bundle layout shifts between Blender
-    # versions. Patch every copy that doesn't already define the macro.
-    while IFS= read -r FT_OPTION_H; do
-        if grep -q '^#define FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
-            continue
-        fi
-        echo "==> Patching freetype ftoption.h at $FT_OPTION_H"
+    FT_OPTION_H="$SRC_DIR/lib/$LIB_PLATFORM/freetype/include/freetype2/freetype/config/ftoption.h"
+    if [[ -f "$FT_OPTION_H" ]] && ! grep -q '^#define FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
+        echo "==> Patching freetype ftoption.h to define FT_CONFIG_OPTION_USE_BROTLI"
+        # Replace the commented-out form if it exists, else append.
         if grep -q 'FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
             sed -i.bak 's|/\* *#define FT_CONFIG_OPTION_USE_BROTLI *\*/|#define FT_CONFIG_OPTION_USE_BROTLI|' "$FT_OPTION_H"
         else
             printf '\n#define FT_CONFIG_OPTION_USE_BROTLI\n' >> "$FT_OPTION_H"
         fi
-    done < <(find "$SRC_DIR/lib/$LIB_PLATFORM/freetype" -name 'ftoption.h' 2>/dev/null)
+    fi
 fi
 
 if [[ -n "$LIB_PLATFORM" && -f "$TBB_TASK_H" ]]; then

@@ -52,15 +52,19 @@ case "$(uname -s)-$(uname -m)" in
     Darwin-x86_64) LIB_PLATFORM="macos_x64" ;;
 esac
 if [[ -n "$LIB_PLATFORM" ]]; then
-    FT_OPTION_H="$SRC_DIR/lib/$LIB_PLATFORM/freetype/include/freetype2/freetype/config/ftoption.h"
-    if [[ -f "$FT_OPTION_H" ]] && ! grep -q '^#define FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
-        echo "==> Patching freetype ftoption.h to define FT_CONFIG_OPTION_USE_BROTLI"
+    # Find ftoption.h dynamically — 4.2 ships it at .../freetype2/freetype/config/
+    # but newer bundles (5.x) reorganize the freetype dir.
+    while IFS= read -r FT_OPTION_H; do
+        if grep -q '^#define FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
+            continue
+        fi
+        echo "==> Patching freetype ftoption.h at $FT_OPTION_H"
         if grep -q 'FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
             sed -i.bak 's|/\* *#define FT_CONFIG_OPTION_USE_BROTLI *\*/|#define FT_CONFIG_OPTION_USE_BROTLI|' "$FT_OPTION_H"
         else
             printf '\n#define FT_CONFIG_OPTION_USE_BROTLI\n' >> "$FT_OPTION_H"
         fi
-    fi
+    done < <(find "$SRC_DIR/lib/$LIB_PLATFORM/freetype" -name 'ftoption.h' 2>/dev/null)
 fi
 
 INSTALL_DIR="$SRC_DIR/_bpy_install"

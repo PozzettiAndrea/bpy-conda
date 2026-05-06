@@ -12,6 +12,7 @@ on:
         options:
           - bpy
           - bpy_lts
+          - bpy_lts_3_6
           - all
       python:
         description: 'Python version filter (or "all")'

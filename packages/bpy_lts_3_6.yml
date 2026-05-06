@@ -1,0 +1,18 @@
+name: bpy_lts_3_6
+source_repo: blender/blender
+# Blender 3.6 LTS — released 2023-06-27, extended maintenance through 2025.
+# This is the only Blender LTS that supports Python 3.10. The recipe
+# (recipes/bpy_lts_3_6/) carries the same compiler-strictness patches as
+# bpy_lts (4.2.20) and may need additional ones — its 2023 lib bundle is
+# even older than 4.2's 2024 bundle. Expect iteration.
+source_tag: "v3.6.23"
+
+free_disk_space: true
+
+build_matrix:
+  combinations:
+    - blender_version: "3.6.23"
+      # Blender 3.6 supports Python 3.10 and 3.11. We target 3.10 here since
+      # 4.2 LTS already covers 3.11+.
+      python_versions: ["3.10"]
+  platforms: ["linux", "windows", "osx-arm64"]
