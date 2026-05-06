@@ -32,6 +32,12 @@ REM Skip git pull (rattler-build uses detached HEAD); only fetch libs/submodules
 python build_files\utils\make_update.py --no-blender
 if errorlevel 1 exit /b 1
 
+REM Patch profiling.cpp — MSVC 14.4x (VS 2022 latest) no longer transitively
+REM includes <chrono> through other standard headers, so std::chrono::system_clock
+REM in profiling.cpp:22 fails to resolve. Prepend an explicit #include <chrono>.
+echo ==^> Patching cycles profiling.cpp for MSVC 14.4x chrono visibility
+powershell -NoProfile -Command "$f='%SRC_DIR%\intern\cycles\util\profiling.cpp'; if ((Get-Content $f -TotalCount 5) -notmatch '<chrono>') { $c = Get-Content $f -Raw; Set-Content $f -Value (\"#include <chrono>`r`n\" + $c) -NoNewline; Write-Host 'patched' } else { Write-Host 'already patched' }"
+
 set "INSTALL_DIR=%SRC_DIR%\_bpy_install"
 set "BUILD_DIR=%SRC_DIR%\_bpy_build"
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"

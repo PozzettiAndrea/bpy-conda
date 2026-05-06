@@ -55,8 +55,11 @@ python ./build_files/utils/make_update.py --no-blender $EXTRA_UPDATE_ARGS
 
 # Patch TBB header — Blender's bundled TBB has
 #   static const kind_type binding_completed = kind_type(bound+1);
-# which Clang 22+ (current conda-forge) rejects as "integer value 2 outside
-# the valid range [0, 1] for the enumeration type". Cast through int.
+# Clang 22+ rejects this with a hard C++ error: the resulting value (2) is
+# outside the valid range [0, 1] for the kind_type enum. There's no warning
+# flag to suppress it; we have to actually change the type. Use `int`
+# instead — comparisons with kind_type values still work via implicit
+# conversion, and TBB only uses `binding_completed` as a sentinel.
 LIB_PLATFORM=""
 case "$(uname -s)-$(uname -m)" in
     Linux-x86_64) LIB_PLATFORM="linux_x64" ;;
@@ -66,7 +69,9 @@ esac
 TBB_TASK_H="$SRC_DIR/lib/$LIB_PLATFORM/tbb/include/tbb/task.h"
 if [[ -n "$LIB_PLATFORM" && -f "$TBB_TASK_H" ]]; then
     echo "==> Patching TBB header for clang 22 strictness"
-    sed -i.bak 's|kind_type(bound+1)|kind_type(int(bound)+1)|g' "$TBB_TASK_H" || true
+    sed -i.bak 's|static const kind_type binding_completed = kind_type(bound+1);|static const int binding_completed = static_cast<int>(bound) + 1;|g' "$TBB_TASK_H" || true
+    # Also handle the variant we may have produced from a previous run
+    sed -i.bak 's|kind_type(int(bound)+1)|static_cast<int>(bound) + 1|g' "$TBB_TASK_H" || true
 fi
 
 INSTALL_DIR="$SRC_DIR/_bpy_install"

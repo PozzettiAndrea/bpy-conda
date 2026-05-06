@@ -76,12 +76,11 @@ requirements:
         - xorg-libxi
         - xorg-libxrandr
         - xorg-libxinerama
+        - xorg-xproto              # provides X11/X.h
         - libxkbcommon-cos7-x86_64
         - dbus
         # OpenGL + EGL headers — Blender's bundled OpenSubdiv pulls in GL/gl.h,
-        # and ghost/XR uses EGL/eglplatform.h. Same sysroot-isolation issue as
-        # X11 — apt-installed system libs aren't visible inside the conda
-        # sysroot.
+        # and ghost/XR uses EGL/eglplatform.h. Same sysroot-isolation issue.
         - mesa-libgl-cos7-x86_64
         - mesa-libgl-devel-cos7-x86_64
         - mesa-libegl-cos7-x86_64
