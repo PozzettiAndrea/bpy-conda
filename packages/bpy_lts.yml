@@ -13,6 +13,9 @@ free_disk_space: true
 
 build_matrix:
   combinations:
+    # Blender 4.2 LTS requires Python >= 3.11 (CMakeLists.txt:1317 enforces).
+    # For Python 3.10 a third recipe targeting Blender 3.6 LTS would be
+    # needed — out of scope for now.
     - blender_version: "4.2.20"
-      python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+      python_versions: ["3.11", "3.12", "3.13", "3.14"]
   platforms: ["linux", "windows", "osx-arm64"]

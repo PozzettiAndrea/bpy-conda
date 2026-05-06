@@ -105,7 +105,11 @@ new = re.sub(
     new,
 )
 p.write_text(new)
-print(f"==> Patched {sum(1 for _ in re.finditer(r'static const int \\w+ = static_cast<int>', new))} kind_type sentinels")
+# Compute count outside the f-string — Python 3.10's parser rejects
+# backslashes inside f-string expressions (the regex needs `\w+`).
+sentinel_re = r'static const int \w+ = static_cast<int>'
+count = sum(1 for _ in re.finditer(sentinel_re, new))
+print(f"==> Patched {count} kind_type sentinels")
 PYEOF
 fi
 
