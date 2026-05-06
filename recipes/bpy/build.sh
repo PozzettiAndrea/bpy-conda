@@ -64,7 +64,7 @@ if [[ -n "$LIB_PLATFORM" ]]; then
         else
             printf '\n#define FT_CONFIG_OPTION_USE_BROTLI\n' >> "$FT_OPTION_H"
         fi
-    done < <(find "$SRC_DIR/lib/$LIB_PLATFORM/freetype" -name 'ftoption.h' 2>/dev/null)
+    done < <(find "$SRC_DIR/lib/$LIB_PLATFORM" -name 'ftoption.h' 2>/dev/null)
 fi
 
 INSTALL_DIR="$SRC_DIR/_bpy_install"
