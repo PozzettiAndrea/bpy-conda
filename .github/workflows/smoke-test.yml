@@ -1,0 +1,109 @@
+name: Smoke test bpy packages
+
+# Pulls each published bpy from the pozzettiandrea channel into a fresh
+# env on a matching runner and runs `import bpy`. One job per cell;
+# fail-fast disabled so we see every failing cell, not just the first.
+
+run-name: "smoke ${{ inputs.package }} ${{ inputs.blender }} | py${{ inputs.python }} | ${{ inputs.platform }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Recipe to test (bpy, bpy_lts, bpy_lts_3_6, all)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - bpy
+          - bpy_lts
+          - bpy_lts_3_6
+          - all
+      python:
+        description: 'Python version filter (or "all")'
+        required: false
+        default: 'all'
+        type: string
+      blender:
+        description: 'Blender version filter (e.g. "4.2.20") or "all"'
+        required: false
+        default: 'all'
+        type: string
+      platform:
+        description: 'Platform filter (linux, windows, osx-arm64, or "all")'
+        required: false
+        default: 'all'
+        type: string
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install pyyaml
+      - id: m
+        # Reuse the build matrix generator with --overwrite so it includes
+        # every (package × blender × python × platform) cell regardless of
+        # what's currently on the channel — we want to test what's there.
+        run: |
+          python3 scripts/generate_matrix.py \
+            --package "${{ inputs.package }}" \
+            --python "${{ inputs.python }}" \
+            --blender "${{ inputs.blender }}" \
+            --platform "${{ inputs.platform }}" \
+            --overwrite \
+            --channel pozzettiandrea
+
+  smoke:
+    needs: generate-matrix
+    if: ${{ needs.generate-matrix.outputs.matrix != '[]' && needs.generate-matrix.outputs.matrix != '' }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    name: "smoke ${{ matrix.package }} ${{ matrix.blender_version }} | py${{ matrix.python }} | ${{ matrix.platform }}"
+    steps:
+      # mamba-org/setup-micromamba handles per-OS install + activation
+      # (including PowerShell on Windows). create-args matches our recipes'
+      # build strings (py${PY_NODOT}, no platform suffix).
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: bpytest
+          create-args: >-
+            python=${{ matrix.python }}
+            bpy=${{ matrix.blender_version }}=py${{ matrix.python == '3.10' && '310' || matrix.python == '3.11' && '311' || matrix.python == '3.12' && '312' || matrix.python == '3.13' && '313' || matrix.python == '3.14' && '314' || '' }}
+          condarc: |
+            channels:
+              - pozzettiandrea
+              - conda-forge
+
+      # Linux runners need libGL.so.1 etc. for Blender's GHOST init even when
+      # bpy is used headless. apt-install just enough for `import bpy` to load.
+      - name: Install Linux runtime libs
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libegl1 libxkbcommon0 libxxf86vm1 libxfixes3 \
+            libxi6 libxrender1 libxrandr2 libsm6
+
+      - name: Import bpy (Unix)
+        if: matrix.platform != 'windows'
+        shell: bash -el {0}
+        run: |
+          python -c "
+          import bpy, sys
+          print('OK', bpy.app.version_string, '(Python', sys.version.split()[0] + ')')
+          "
+
+      - name: Import bpy (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          micromamba run -n bpytest python -c "
+          import bpy, sys
+          print('OK', bpy.app.version_string, '(Python', sys.version.split()[0] + ')')
+          "
