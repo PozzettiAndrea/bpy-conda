@@ -92,6 +92,9 @@ mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
 if [[ "$(uname -s)" == "Linux" ]]; then
     export CXXFLAGS="${CXXFLAGS:-} -idirafter /usr/include"
     export CFLAGS="${CFLAGS:-} -idirafter /usr/include"
+    # Force-include <cstdint> — bundled OpenColorIO.h uses uint8_t without
+    # including it; gcc 15.2 doesn't pull it in transitively.
+    export CXXFLAGS="$CXXFLAGS -include cstdint"
 fi
 
 echo "==> CMake configure"

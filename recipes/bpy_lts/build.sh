@@ -132,6 +132,11 @@ mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
 if [[ "$(uname -s)" == "Linux" ]]; then
     export CXXFLAGS="${CXXFLAGS:-} -idirafter /usr/include"
     export CFLAGS="${CFLAGS:-} -idirafter /usr/include"
+    # Force-include <cstdint> on every C++ TU. Blender's bundled OpenColorIO
+    # header uses uint8_t without including <cstdint>; gcc 15.2 doesn't pull
+    # it in transitively, so each .cc.o that #includes OpenColorIO.h fails
+    # with "'uint8_t' was not declared in this scope".
+    export CXXFLAGS="$CXXFLAGS -include cstdint"
 fi
 
 # On macOS, suppress clang 22's hard error on TBB's
