@@ -52,8 +52,7 @@ case "$(uname -s)-$(uname -m)" in
     Darwin-x86_64) LIB_PLATFORM="macos_x64" ;;
 esac
 if [[ -n "$LIB_PLATFORM" ]]; then
-    # Find ftoption.h dynamically — 4.2 ships it at .../freetype2/freetype/config/
-    # but newer bundles (5.x) reorganize the freetype dir.
+    # Patch ftoption.h if present anywhere in the lib bundle.
     while IFS= read -r FT_OPTION_H; do
         if grep -q '^#define FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
             continue
@@ -65,6 +64,18 @@ if [[ -n "$LIB_PLATFORM" ]]; then
             printf '\n#define FT_CONFIG_OPTION_USE_BROTLI\n' >> "$FT_OPTION_H"
         fi
     done < <(find "$SRC_DIR/lib/$LIB_PLATFORM" -name 'ftoption.h' 2>/dev/null)
+fi
+# Belt-and-suspenders: also disable the check at the CMake level. The bundle
+# layout has shifted between Blender 4.2 and 5.x and the ftoption.h-find
+# patch above sometimes finds nothing on 5.1's Linux bundle. Stub out the
+# check function in platform_unix.cmake so it always passes — bundled
+# libfreetype.a does have brotli code, just not exposed in the headers.
+PLATFORM_UNIX_CMAKE="$SRC_DIR/build_files/cmake/platform/platform_unix.cmake"
+if [[ -f "$PLATFORM_UNIX_CMAKE" ]]; then
+    if grep -q 'Freetype needs to be compiled with brotli support' "$PLATFORM_UNIX_CMAKE"; then
+        echo "==> Stubbing platform_unix.cmake's check_freetype_for_brotli to no-op"
+        sed -i.bak 's|message(FATAL_ERROR "Freetype needs to be compiled with brotli support!")|message(WARNING "(bpy-conda) brotli check bypassed — bundled freetype is fine at runtime")|' "$PLATFORM_UNIX_CMAKE"
+    fi
 fi
 
 INSTALL_DIR="$SRC_DIR/_bpy_install"

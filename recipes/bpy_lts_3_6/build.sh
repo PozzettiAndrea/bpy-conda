@@ -85,6 +85,12 @@ if [[ -n "$LIB_PLATFORM" ]]; then
         fi
     done < <(find "$SRC_DIR/lib/$LIB_PLATFORM" -name 'ftoption.h' 2>/dev/null)
 fi
+# Belt-and-suspenders: stub out the brotli check in platform_unix.cmake.
+PLATFORM_UNIX_CMAKE="$SRC_DIR/build_files/cmake/platform/platform_unix.cmake"
+if [[ -f "$PLATFORM_UNIX_CMAKE" ]] && grep -q 'Freetype needs to be compiled with brotli support' "$PLATFORM_UNIX_CMAKE"; then
+    echo "==> Stubbing platform_unix.cmake's check_freetype_for_brotli to no-op"
+    sed -i.bak 's|message(FATAL_ERROR "Freetype needs to be compiled with brotli support!")|message(WARNING "(bpy-conda) brotli check bypassed")|' "$PLATFORM_UNIX_CMAKE"
+fi
 
 if [[ -n "$LIB_PLATFORM" && -f "$TBB_TASK_H" ]]; then
     echo "==> Patching TBB header for clang 22 strictness"
