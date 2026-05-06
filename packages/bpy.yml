@@ -1,23 +1,15 @@
 name: bpy
 source_repo: blender/blender
-# Default tag if no per-combination override (each entry in
-# build_matrix.combinations sets its own blender_version, so this is mostly
-# documentation). The recipe.yaml uses ${{ blender_version }} from the
-# variant.
+# Current Blender stable — matches what `pip install bpy` ships today.
+# 5.x is built against modern toolchains so the recipe (recipes/bpy/) is
+# clean. For the older 4.2 LTS line with compiler-strictness patches see
+# packages/bpy_lts.yml + recipes/bpy_lts/.
 source_tag: "v5.1.1"
 
 free_disk_space: true
 
 build_matrix:
   combinations:
-    # Current stable — matches what `pip install bpy` ships. Built against
-    # modern toolchains (clang 22, MSVC 14.44) without compiler-strictness
-    # workarounds.
     - blender_version: "5.1.1"
-      python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-    # 4.2 LTS — needs the patches in build.sh (TBB sed, ftoption.h brotli,
-    # WITH_USD=OFF, chrono prepend) because its 2024-era lib bundle clashes
-    # with 2026 compilers. Kept here so the channel offers an LTS variant.
-    - blender_version: "4.2.20"
       python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
   platforms: ["linux", "windows", "osx-arm64"]

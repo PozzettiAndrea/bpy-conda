@@ -4,6 +4,15 @@ run-name: "bpy ${{ inputs.blender }} | py${{ inputs.python }} | ${{ inputs.platf
 on:
   workflow_dispatch:
     inputs:
+      package:
+        description: 'Recipe to build'
+        required: false
+        default: 'bpy'
+        type: choice
+        options:
+          - bpy
+          - bpy_lts
+          - all
       python:
         description: 'Python version filter (or "all")'
         required: false
@@ -40,7 +49,7 @@ jobs:
         id: matrix
         run: |
           python3 scripts/generate_matrix.py \
-            --package bpy \
+            --package "${{ inputs.package }}" \
             --python "${{ inputs.python }}" \
             --blender "${{ inputs.blender }}" \
             --platform "${{ inputs.platform }}" \

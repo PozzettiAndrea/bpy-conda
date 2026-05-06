@@ -1,0 +1,18 @@
+name: bpy_lts
+source_repo: blender/blender
+# Blender 4.2 LTS line. The recipe (recipes/bpy_lts/) carries patches for
+# compiler-strictness issues with 2026 toolchains (clang 22, MSVC 14.44):
+#   - TBB header kind_type sentinel rewrite
+#   - freetype ftoption.h FT_CONFIG_OPTION_USE_BROTLI define
+#   - cycles profiling.cpp #include <chrono> prepend (Windows)
+#   - WITH_USD=OFF / WITH_XR_OPENXR=OFF
+# These are unnecessary for newer Blender (5.x) and are kept isolated here.
+source_tag: "v4.2.20"
+
+free_disk_space: true
+
+build_matrix:
+  combinations:
+    - blender_version: "4.2.20"
+      python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+  platforms: ["linux", "windows", "osx-arm64"]

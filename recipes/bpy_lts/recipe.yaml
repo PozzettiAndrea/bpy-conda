@@ -1,0 +1,114 @@
+context:
+  # Recipe directory is `bpy_lts` (4.2 LTS, requires compiler-strictness
+  # patches in build.sh) but the conda package output is still named `bpy`
+  # so users can `conda install bpy=4.2.20` and get the LTS build.
+  name: bpy
+  version: ${{ blender_version }}
+  # Use Blender's official Gitea (projects.blender.org), not the GitHub mirror.
+  # The GitHub mirror does not host git-lfs objects — Blender's icon DAT files
+  # and other binary assets live in LFS only on the Gitea origin. Cloning from
+  # GitHub + git lfs pull yields "remote missing object" errors.
+  source_url: "https://projects.blender.org/blender/blender.git"
+  source_tag: "v${{ blender_version }}"
+  py_short: ${{ python | replace('.', '') }}
+
+package:
+  name: ${{ name }}
+  version: ${{ version }}
+
+source:
+  git: ${{ source_url }}
+  tag: ${{ source_tag }}
+  # Blender's tree contains submodules (addons, dev tools); we don't need a deep
+  # history but `make update` will fetch the precompiled lib bundle separately.
+  depth: 1
+
+build:
+  number: 0
+  string: "py${{ py_short }}_${{ target_platform }}"
+  # rattler-build auto-detects build.sh / build.bat sitting next to recipe.yaml,
+  # so no explicit `script:` entry is needed.
+
+requirements:
+  build:
+    - cmake >=3.28
+    - ninja
+    - git
+    - git-lfs
+    - if: unix
+      then:
+        # subversion is required for Blender's `make_update.py` on Linux/macOS
+        # (lib bundles fetched via svn checkout). conda-forge doesn't ship
+        # subversion for win-64 — Blender's Windows lib bundle path may not
+        # need it, but we'll find out.
+        - subversion
+    - if: linux
+      then:
+        - ${{ compiler('c') }}
+        - ${{ compiler('cxx') }}
+        - make
+        - patchelf
+    - if: osx
+      then:
+        - ${{ compiler('c') }}
+        - ${{ compiler('cxx') }}
+        - make
+    - if: win
+      then:
+        # Blender 4.2's platform_win32.cmake requires MSVC 14.29+ (VS 2019).
+        # Conda-forge default vs2017_win-64 (MSVC 14.16) is rejected with
+        # "Compiler is unsupported". vs2022_win-64 ships MSVC 14.4x.
+        - vs2022_win-64
+  host:
+    - python ${{ python }}.*
+    - pip
+    - setuptools
+    # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
+    # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
+    # `host` because mixing the bundle versions with conda-forge versions leads
+    # to ABI mismatches at link time.
+    - if: linux
+      then:
+        # X11 dev headers — conda's sysroot isolates the build from system
+        # /usr/include and /usr/lib, so apt-installed X11 isn't visible to
+        # CMake. Pull the dev libs in as conda packages instead.
+        - xorg-libx11
+        - xorg-libxext
+        - xorg-libxxf86vm
+        - xorg-libxcursor
+        - xorg-libxi
+        - xorg-libxrandr
+        - xorg-libxinerama
+        - xorg-xproto              # provides X11/X.h
+        - libxkbcommon-cos7-x86_64
+        - dbus
+        # OpenGL + EGL headers — Blender's bundled OpenSubdiv pulls in GL/gl.h,
+        # and ghost/XR uses EGL/eglplatform.h. Same sysroot-isolation issue.
+        - mesa-libgl-cos7-x86_64
+        - mesa-libgl-devel-cos7-x86_64
+        - mesa-libegl-cos7-x86_64
+        - mesa-libegl-devel-cos7-x86_64
+  run:
+    - python ${{ python }}.*
+    # Mirrors how the official PyPI bpy wheels behave: ships statically what it
+    # needs, depends only on Python at runtime.
+
+about:
+  homepage: https://www.blender.org/
+  repository: https://projects.blender.org/blender/blender
+  license: GPL-2.0-or-later
+  license_file:
+    - COPYING
+  summary: Blender as a Python module (bpy) — community-built conda package
+  description: |
+    The `bpy` Python module exposes Blender's Python API as a standalone
+    importable module. This package is built from upstream Blender source
+    (tag pinned in the recipe) using `cmake -DWITH_PYTHON_MODULE=ON`.
+
+    This is an unofficial community build. It is not endorsed by, affiliated
+    with, or sponsored by the Blender Foundation. See NOTICE.md in the
+    PozzettiAndrea/bpy-conda repository for GPL source-availability details.
+
+extra:
+  recipe-maintainers:
+    - PozzettiAndrea

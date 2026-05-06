@@ -80,15 +80,39 @@ def main():
     parser.add_argument("--channel", default="pozzettiandrea")
     args = parser.parse_args()
 
-    config = load_package_config(args.package)
-    combos = get_combinations(config)
+    # `--package all` expands to every YAML in packages/ (e.g. bpy + bpy_lts).
+    if args.package == "all":
+        packages_dir = Path(__file__).parent.parent / "packages"
+        package_names = sorted(p.stem for p in packages_dir.glob("*.yml"))
+    else:
+        package_names = [args.package]
 
-    if args.python != "all":
-        combos = [c for c in combos if c["python"] == args.python]
-    if args.blender != "all":
-        combos = [c for c in combos if c["blender_version"] == args.blender]
-    if args.platform != "all":
-        combos = [c for c in combos if c["platform"] == args.platform]
+    combos = []
+    package_for_combo = []
+    for pkg in package_names:
+        config = load_package_config(pkg)
+        for c in get_combinations(config):
+            combos.append(c)
+            package_for_combo.append(pkg)
+
+    # Apply filters in lockstep with package_for_combo so the matrix entries
+    # carry the right recipe directory.
+    filtered = []
+    for c, pkg in zip(combos, package_for_combo):
+        if args.python != "all" and c["python"] != args.python:
+            continue
+        if args.blender != "all" and c["blender_version"] != args.blender:
+            continue
+        if args.platform != "all" and c["platform"] != args.platform:
+            continue
+        c["package"] = pkg
+        filtered.append(c)
+    combos = filtered
+
+    # All recipes here produce a conda package named `bpy` (both recipes set
+    # name: bpy in their context). The recipe directory is what differs —
+    # that's what `combo["package"]` carries.
+    CONDA_PACKAGE_NAME = "bpy"
 
     matrix = []
     for combo in combos:
@@ -97,12 +121,12 @@ def main():
         build_prefix = f"py{combo['python'].replace('.', '')}_{combo['subdir']}"
 
         if not args.overwrite:
-            if check_existing(args.channel, args.package, version, build_prefix, combo["subdir"]):
-                print(f"  SKIP {args.package} {version} {build_prefix} (exists)", file=sys.stderr)
+            if check_existing(args.channel, CONDA_PACKAGE_NAME, version, build_prefix, combo["subdir"]):
+                print(f"  SKIP {combo['package']} {version} {build_prefix} (exists)", file=sys.stderr)
                 continue
 
         matrix.append({
-            "package": args.package,
+            "package": combo["package"],
             "blender_version": combo["blender_version"],
             "python": combo["python"],
             "platform": combo["platform"],
