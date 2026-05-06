@@ -29,8 +29,13 @@ cd "$SRC_DIR"
 # stores binary icon datafiles (release/datafiles/blender_icons*/) in LFS, so
 # without this the DAT files are pointer text files and `datatoc_icon` fails
 # with "failed to read pixels" / "dir has no icons" during compile.
+#
+# rattler-build's `origin` remote points at a local bare-clone cache (not a
+# real URL), so git-lfs can't auto-derive the endpoint. Set it explicitly to
+# Blender's Gitea LFS endpoint.
 echo "==> Pulling git-lfs objects"
 git lfs install --local
+git config lfs.url https://projects.blender.org/blender/blender.git/info/lfs
 git lfs pull
 
 echo "==> Fetching Blender precompiled libs (this is the big one)"

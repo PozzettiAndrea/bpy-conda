@@ -21,8 +21,10 @@ cd /d "%SRC_DIR%"
 
 REM rattler-build's git: source fetch doesn't pull LFS objects; Blender stores
 REM icon datafiles in LFS so we need to materialize them before make_update.
+REM Origin is a local cache path so set the LFS URL explicitly.
 echo ==^> Pulling git-lfs objects
 call git lfs install --local
+call git config lfs.url https://projects.blender.org/blender/blender.git/info/lfs
 call git lfs pull
 
 echo ==^> Fetching Blender precompiled libs
