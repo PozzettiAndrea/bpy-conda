@@ -1,11 +1,12 @@
 context:
   name: bpy
   version: ${{ blender_version }}
-  # Use Blender's official Gitea (projects.blender.org), not the GitHub mirror.
-  # The GitHub mirror does not host git-lfs objects — Blender's icon DAT files
-  # and other binary assets live in LFS only on the Gitea origin. Cloning from
-  # GitHub + git lfs pull yields "remote missing object" errors.
-  source_url: "https://projects.blender.org/blender/blender.git"
+  # Clone from the GitHub mirror — projects.blender.org's Gitea git server
+  # is much slower (~20+ min for a shallow clone vs ~1 min from GitHub).
+  # LFS objects don't exist on the GitHub mirror, but build.sh sets
+  # `lfs.url` explicitly to projects.blender.org's LFS endpoint before
+  # running `git lfs pull`, so LFS still works.
+  source_url: "https://github.com/blender/blender.git"
   source_tag: "v${{ blender_version }}"
   py_short: ${{ python | replace('.', '') }}
 

@@ -4,11 +4,10 @@ context:
   # so users can `conda install bpy=4.2.20` and get the LTS build.
   name: bpy
   version: ${{ blender_version }}
-  # Use Blender's official Gitea (projects.blender.org), not the GitHub mirror.
-  # The GitHub mirror does not host git-lfs objects — Blender's icon DAT files
-  # and other binary assets live in LFS only on the Gitea origin. Cloning from
-  # GitHub + git lfs pull yields "remote missing object" errors.
-  source_url: "https://projects.blender.org/blender/blender.git"
+  # Clone from the GitHub mirror (much faster than projects.blender.org).
+  # build.sh sets `lfs.url` to projects.blender.org explicitly before
+  # `git lfs pull` so LFS objects (icon DATs etc.) still resolve.
+  source_url: "https://github.com/blender/blender.git"
   source_tag: "v${{ blender_version }}"
   py_short: ${{ python | replace('.', '') }}
 
