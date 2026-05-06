@@ -70,16 +70,10 @@ requirements:
     - setuptools
     # Audaspace's Python bindings #include <numpy/ndarrayobject.h>.
     - numpy
-    # Modern Boost (1.86+) — Blender 3.6's bundled Boost ~1.78 has MPL
-    # template patterns that clang 22 (and even 21) reject as
-    # "non-type template argument is not a constant expression". After
-    # make_update we delete the bundle's boost/include and let conda's
-    # ${PREFIX}/include/boost win. Boost MPL is header-only, so no ABI
-    # risk vs the bundle's pre-compiled libboost_python.dylib etc.
-    - if: osx
-      then:
-        - libboost-devel
-        - libboost-python-devel
+    # No conda-forge libboost — we patch bundle Boost's integral_wrapper.hpp
+    # in place (Boost 1.86 backport) so clang 21+ accepts it. Bundle Boost
+    # stays as the source of truth for header AND lib (avoids ABI mixing
+    # vs bundle's pre-compiled libboost_python.dylib).
     # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads

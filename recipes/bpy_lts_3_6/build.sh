@@ -68,17 +68,20 @@ case "$(uname -s)-$(uname -m)" in
 esac
 TBB_TASK_H="$SRC_DIR/lib/$LIB_PLATFORM/tbb/include/tbb/task.h"
 
-# Remove the bundle's WHOLE Boost dir (not just boost/include) on macOS so
-# Blender's platform_apple.cmake `if(EXISTS ${LIBDIR}/boost)` check fails
-# and CMake falls through to find_package(Boost) honouring our
-# -DBOOST_ROOT=$PREFIX hint pointing at conda-forge libboost-devel (~1.86,
-# which has the constexpr fixes that bundle Boost ~1.78 lacks). The
-# bundle's compiled libboost_python.dylib etc. would no longer be linkable
-# from this build, but Blender's targets that need them get rebuilt
-# against the conda-forge ones since headers come from $PREFIX too.
-if [[ "$(uname -s)" == "Darwin" && -d "$SRC_DIR/lib/$LIB_PLATFORM/boost" ]]; then
-    echo "==> Renaming bundle Boost dir so platform_apple.cmake's EXISTS check fails"
-    mv "$SRC_DIR/lib/$LIB_PLATFORM/boost" "$SRC_DIR/lib/$LIB_PLATFORM/boost.bundled-disabled"
+# Patch bundle Boost MPL integral_wrapper.hpp on macOS — clang 21+ rejects
+# Boost ~1.78's `kind_type(value - 1)` non-type template arguments as
+# non-constexpr. Boost 1.86 fixed this by wrapping in static_cast<long>.
+# Backport the same change. Keeps the bundle's libboost_python.dylib
+# usable (no ABI swap), avoids fighting Blender CMake's bundle detection.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    INTEGRAL_WRAPPER_H="$SRC_DIR/lib/$LIB_PLATFORM/boost/include/boost/mpl/aux_/integral_wrapper.hpp"
+    if [[ -f "$INTEGRAL_WRAPPER_H" ]] && ! grep -q 'static_cast<long>(value)' "$INTEGRAL_WRAPPER_H"; then
+        echo "==> Patching Boost MPL integral_wrapper.hpp for clang 21+ constexpr strictness"
+        sed -i.bak \
+            -e 's|(value - 1)|(static_cast<long>(value) - 1)|g' \
+            -e 's|(value + 1)|(static_cast<long>(value) + 1)|g' \
+            "$INTEGRAL_WRAPPER_H"
+    fi
 fi
 # Patch freetype config — Blender's bundle ships libfreetype.a alongside
 # libbrotlicommon-static.a but the freetype headers don't define
@@ -197,14 +200,6 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
         "-DCMAKE_AR=$AR_BIN"
         "-DCMAKE_RANLIB=$RANLIB_BIN"
         "-DCMAKE_LIBTOOL=$LIBTOOL_BIN"
-    )
-    # Boost: bundle's old MPL was removed (mv to .bundled-disabled),
-    # so point CMake at conda-forge libboost-devel in $PREFIX. Without
-    # this hint, find_package(Boost) returns Boost_INCLUDE_DIR-NOTFOUND.
-    OSX_FLAGS+=(
-        "-DBOOST_ROOT=$PREFIX"
-        "-DBoost_NO_BOOST_CMAKE=ON"
-        "-DBoost_NO_SYSTEM_PATHS=OFF"
     )
 fi
 
