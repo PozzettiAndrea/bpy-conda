@@ -172,15 +172,15 @@ jobs:
             echo "::warning::ANACONDA_TOKEN not set — skipping upload (artifact still uploaded as GHA artifact)"
             exit 0
           fi
-          # Loop with explicit error propagation; `find -exec ... \;` swallows
-          # individual command failures.
-          shopt -s globstar nullglob
+          # Walk output/ for .conda files. `find` is portable; macOS bash 3.2
+          # doesn't support `shopt globstar`. Use a process-substitution loop
+          # so per-file `anaconda upload` failures propagate via `set -e`.
           uploaded=0
-          for f in output/**/*.conda; do
+          while IFS= read -r f; do
             echo "==> Uploading $f"
             anaconda upload --force "$f"
             uploaded=$((uploaded+1))
-          done
+          done < <(find output/ -name '*.conda')
           if [[ $uploaded -eq 0 ]]; then
             echo "::error::No .conda artifacts found to upload"
             exit 1
