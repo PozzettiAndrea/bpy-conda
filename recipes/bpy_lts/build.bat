@@ -32,11 +32,11 @@ REM Skip git pull (rattler-build uses detached HEAD); only fetch libs/submodules
 python build_files\utils\make_update.py --no-blender
 if errorlevel 1 exit /b 1
 
-REM Patch profiling.cpp — MSVC 14.4x (VS 2022 latest) no longer transitively
-REM includes <chrono> through other standard headers, so std::chrono::system_clock
-REM in profiling.cpp:22 fails to resolve. Prepend an explicit #include <chrono>.
+REM Patch profiling.cpp — MSVC 14.4x no longer transitively includes <chrono>.
+REM Use Python (binary-safe) instead of PowerShell which defaults to UTF-16
+REM and was corrupting the file encoding so the include never took effect.
 echo ==^> Patching cycles profiling.cpp for MSVC 14.4x chrono visibility
-powershell -NoProfile -Command "$f='%SRC_DIR%\intern\cycles\util\profiling.cpp'; if ((Get-Content $f -TotalCount 5) -notmatch '<chrono>') { $c = Get-Content $f -Raw; Set-Content $f -Value (\"#include <chrono>`r`n\" + $c) -NoNewline; Write-Host 'patched' } else { Write-Host 'already patched' }"
+python -c "import pathlib; p = pathlib.Path(r'%SRC_DIR%\intern\cycles\util\profiling.cpp'); s = p.read_text(encoding='utf-8'); print('already patched') if '<chrono>' in s.splitlines()[0] else (p.write_text('#include <chrono>\n' + s, encoding='utf-8'), print('patched'))"
 
 set "INSTALL_DIR=%SRC_DIR%\_bpy_install"
 set "BUILD_DIR=%SRC_DIR%\_bpy_build"
