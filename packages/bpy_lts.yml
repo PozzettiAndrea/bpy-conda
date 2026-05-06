@@ -13,9 +13,12 @@ free_disk_space: true
 
 build_matrix:
   combinations:
-    # Blender 4.2 LTS requires Python >= 3.11 (CMakeLists.txt:1317 enforces).
-    # For Python 3.10 a third recipe targeting Blender 3.6 LTS would be
-    # needed — out of scope for now.
+    # Blender 4.2 LTS supports Python 3.11–3.13. Bounds:
+    #  - >=3.11: CMakeLists.txt:1317 enforces (3.10 attempts hard-fail).
+    #  - <=3.13: bpy_driver.cc references CPython's BINARY_SUBSCR opcode,
+    #    which Python 3.14 removed/renamed → "use of undeclared identifier
+    #    'BINARY_SUBSCR'". Would need source patches to support 3.14.
+    # For 3.10 use bpy_lts_3_6 (Blender 3.6 LTS); for 3.14 use bpy (5.x).
     - blender_version: "4.2.20"
-      python_versions: ["3.11", "3.12", "3.13", "3.14"]
+      python_versions: ["3.11", "3.12", "3.13"]
   platforms: ["linux", "windows", "osx-arm64"]
