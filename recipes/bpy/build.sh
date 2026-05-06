@@ -39,6 +39,30 @@ if [[ "$(uname -s)" == "Linux" ]]; then
 fi
 python ./build_files/utils/make_update.py --no-blender $EXTRA_UPDATE_ARGS
 
+# Patch freetype config — Blender's lib bundle ships libfreetype.a alongside
+# libbrotlicommon-static.a but the freetype headers don't define
+# FT_CONFIG_OPTION_USE_BROTLI. Blender's check_freetype_for_brotli runs a
+# header check and fails with "Freetype needs to be compiled with brotli
+# support!". Define the macro so the check passes; the bundled .a has
+# brotli code linked in. (Same issue exists across 4.2 and 5.1 lib bundles.)
+LIB_PLATFORM=""
+case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64) LIB_PLATFORM="linux_x64" ;;
+    Darwin-arm64) LIB_PLATFORM="macos_arm64" ;;
+    Darwin-x86_64) LIB_PLATFORM="macos_x64" ;;
+esac
+if [[ -n "$LIB_PLATFORM" ]]; then
+    FT_OPTION_H="$SRC_DIR/lib/$LIB_PLATFORM/freetype/include/freetype2/freetype/config/ftoption.h"
+    if [[ -f "$FT_OPTION_H" ]] && ! grep -q '^#define FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
+        echo "==> Patching freetype ftoption.h to define FT_CONFIG_OPTION_USE_BROTLI"
+        if grep -q 'FT_CONFIG_OPTION_USE_BROTLI' "$FT_OPTION_H"; then
+            sed -i.bak 's|/\* *#define FT_CONFIG_OPTION_USE_BROTLI *\*/|#define FT_CONFIG_OPTION_USE_BROTLI|' "$FT_OPTION_H"
+        else
+            printf '\n#define FT_CONFIG_OPTION_USE_BROTLI\n' >> "$FT_OPTION_H"
+        fi
+    fi
+fi
+
 INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
 mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
