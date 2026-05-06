@@ -43,14 +43,18 @@ if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
 echo ==^> CMake configure
-cmake -S "%SRC_DIR%" -B "%BUILD_DIR%" -G Ninja ^
+REM Use Blender's official bpy_module.cmake preset (the `make bpy` entry
+REM point). It sets WITH_PYTHON_MODULE=ON, WITH_PYTHON_INSTALL=OFF,
+REM WITH_TBB_MALLOC_PROXY=OFF (avoids dlopen-time malloc clash with numpy),
+REM WITH_BLENDER_THUMBNAILER=OFF, WITH_INPUT_NDOF=OFF, audio backends OFF
+REM but WITH_AUDASPACE=ON for sequencer, and crucially on Windows
+REM WITH_WINDOWS_BUNDLE_CRT=OFF (helps avoid SxS DLL load failures).
+cmake -C "%SRC_DIR%\build_files\cmake\config\bpy_module.cmake" ^
+    -S "%SRC_DIR%" -B "%BUILD_DIR%" -G Ninja ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DCMAKE_INSTALL_PREFIX="%INSTALL_DIR%" ^
-    -DWITH_PYTHON_MODULE=ON ^
-    -DWITH_PYTHON_INSTALL=OFF ^
     -DWITH_INSTALL_PORTABLE=ON ^
     -DWITH_USD=OFF ^
-    -DWITH_AUDASPACE=ON ^
     -DWITH_INSTALL_COPYRIGHT=ON ^
     -DPYTHON_VERSION="%PY_VER%" ^
     -DPYTHON_ROOT_DIR="%PREFIX%" ^

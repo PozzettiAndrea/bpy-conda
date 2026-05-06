@@ -206,13 +206,13 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     )
 fi
 
-cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
+# Use Blender's official bpy_module.cmake preset — see recipes/bpy/build.sh
+# for rationale (WITH_TBB_MALLOC_PROXY=OFF, audio off, IME off, etc.).
+cmake -C "$SRC_DIR/build_files/cmake/config/bpy_module.cmake" \
+    -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
-    -DWITH_PYTHON_MODULE=ON \
-    -DWITH_PYTHON_INSTALL=OFF \
     -DWITH_INSTALL_PORTABLE=ON \
-    -DWITH_AUDASPACE=ON \
     -DWITH_INSTALL_COPYRIGHT=ON \
     -DWITH_XR_OPENXR=OFF \
     -DWITH_USD=OFF \

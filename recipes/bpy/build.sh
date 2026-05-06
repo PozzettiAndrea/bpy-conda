@@ -131,13 +131,24 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     )
 fi
 
-cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
+# Use Blender's official bpy_module.cmake preset (`make bpy` entry point).
+# This sets WITH_PYTHON_MODULE=ON, WITH_PYTHON_INSTALL=OFF, plus several
+# decisions Blender's release engineers made for the PyPI bpy wheel:
+#  - WITH_TBB_MALLOC_PROXY=OFF  (prevents `munmap_chunk(): invalid pointer`
+#    SIGABRTs when bpy is loaded into a process that already has glibc
+#    allocations, e.g. `import numpy; import bpy`).
+#  - WITH_BLENDER_THUMBNAILER=OFF
+#  - WITH_INPUT_NDOF=OFF, WITH_INPUT_IME=OFF, WITH_INTERNATIONAL=OFF
+#  - All audio device backends OFF; only WITH_AUDASPACE=ON for sequencer
+#  - WITH_WINDOWS_BUNDLE_CRT=OFF (Windows; helps with SxS DLL issues)
+# Our own -D flags below override / extend the preset where we have a
+# specific reason (e.g. WITH_XR_OPENXR=OFF on LTS, PYTHON_* pointed at
+# conda's Python rather than Blender's bundled one).
+cmake -C "$SRC_DIR/build_files/cmake/config/bpy_module.cmake" \
+    -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
-    -DWITH_PYTHON_MODULE=ON \
-    -DWITH_PYTHON_INSTALL=OFF \
     -DWITH_INSTALL_PORTABLE=ON \
-    -DWITH_AUDASPACE=ON \
     -DWITH_INSTALL_COPYRIGHT=ON \
     -DWITH_XR_OPENXR=OFF \
     -DPYTHON_VERSION="$PY_VER" \
