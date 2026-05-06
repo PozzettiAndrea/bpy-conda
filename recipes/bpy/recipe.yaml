@@ -23,7 +23,11 @@ source:
 
 build:
   number: 0
-  string: "py${{ py_short }}_${{ target_platform }}"
+  # No hyphens in the build string. anaconda.org's repodata indexer parses
+  # `{name}-{version}-{build}.conda` filenames; a hyphen in the build string
+  # (e.g. "osx-arm64") makes the indexer mis-split and the package shows up
+  # on the channel as `bpy-5.1.1` instead of `bpy`.
+  string: "py${{ py_short }}"
   # rattler-build auto-detects build.sh / build.bat sitting next to recipe.yaml,
   # so no explicit `script:` entry is needed.
 
@@ -110,6 +114,16 @@ about:
     This is an unofficial community build. It is not endorsed by, affiliated
     with, or sponsored by the Blender Foundation. See NOTICE.md in the
     PozzettiAndrea/bpy-conda repository for GPL source-availability details.
+
+tests:
+  # rattler-build creates a FRESH env with only python + this package's run
+  # deps, then runs `import bpy`. The build env (with cmake, ninja, MSVC,
+  # numpy/pip/setuptools host pins, etc.) is NOT inherited — so a missing
+  # DSO or DLL surfaces here, exactly as it would for an end user.
+  - python:
+      imports:
+        - bpy
+      python_version: ${{ python }}
 
 extra:
   recipe-maintainers:
