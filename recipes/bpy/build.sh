@@ -73,6 +73,27 @@ INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
 mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
 
+# On Linux, conda's sysroot doesn't expose system /usr/include, but the
+# workflow apt-installed EGL/GL/X11 headers there. Copy them into $PREFIX/include
+# so CMake (using conda's compiler with sysroot isolation) can find them.
+if [[ "$(uname -s)" == "Linux" ]]; then
+    for hdr in EGL GL KHR; do
+        if [[ -d "/usr/include/$hdr" && ! -d "$PREFIX/include/$hdr" ]]; then
+            echo "==> Copying /usr/include/$hdr → \$PREFIX/include/$hdr"
+            cp -r "/usr/include/$hdr" "$PREFIX/include/"
+        fi
+    done
+fi
+
+# On macOS, suppress clang 22's hard error on TBB's
+# `kind_type binding_completed = kind_type(bound+1)` — the enum-overflow is
+# real, but TBB upstream considers it benign; sed-patching to int() doesn't
+# help because clang checks the final value vs the enum range.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    export CXXFLAGS="${CXXFLAGS:-} -Wno-error=enum-constexpr-conversion -Wno-enum-constexpr-conversion"
+    export CFLAGS="${CFLAGS:-} -Wno-error=enum-constexpr-conversion -Wno-enum-constexpr-conversion"
+fi
+
 echo "==> CMake configure"
 # On macOS, force CMake to use conda-forge's SDK rather than letting Blender's
 # platform_apple.cmake auto-detect via xcrun (which picks up the host CLT SDK
