@@ -28,13 +28,17 @@ build:
 
 requirements:
   build:
-    # Common across all platforms — Blender's make update wants git+git-lfs+svn
-    # for fetching the precompiled lib bundle.
     - cmake >=3.28
     - ninja
     - git
     - git-lfs
-    - subversion
+    - if: unix
+      then:
+        # subversion is required for Blender's `make_update.py` on Linux/macOS
+        # (lib bundles fetched via svn checkout). conda-forge doesn't ship
+        # subversion for win-64 — Blender's Windows lib bundle path may not
+        # need it, but we'll find out.
+        - subversion
     - if: linux
       then:
         - ${{ compiler('c') }}
