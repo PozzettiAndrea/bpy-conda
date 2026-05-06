@@ -192,6 +192,14 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
         "-DCMAKE_RANLIB=$RANLIB_BIN"
         "-DCMAKE_LIBTOOL=$LIBTOOL_BIN"
     )
+    # Boost: bundle's old MPL was removed (mv to .bundled-disabled),
+    # so point CMake at conda-forge libboost-devel in $PREFIX. Without
+    # this hint, find_package(Boost) returns Boost_INCLUDE_DIR-NOTFOUND.
+    OSX_FLAGS+=(
+        "-DBOOST_ROOT=$PREFIX"
+        "-DBoost_NO_BOOST_CMAKE=ON"
+        "-DBoost_NO_SYSTEM_PATHS=OFF"
+    )
 fi
 
 cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
