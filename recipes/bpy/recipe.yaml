@@ -50,6 +50,12 @@ requirements:
         - ${{ compiler('c') }}
         - ${{ compiler('cxx') }}
         - make
+    - if: win
+      then:
+        # Blender 4.2's platform_win32.cmake requires MSVC 14.29+ (VS 2019).
+        # Conda-forge default vs2017_win-64 (MSVC 14.16) is rejected with
+        # "Compiler is unsupported". vs2022_win-64 ships MSVC 14.4x.
+        - vs2022_win-64
   host:
     - python ${{ python }}.*
     - pip

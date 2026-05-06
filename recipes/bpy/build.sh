@@ -53,6 +53,22 @@ if [[ "$(uname -s)" == "Linux" ]]; then
 fi
 python ./build_files/utils/make_update.py --no-blender $EXTRA_UPDATE_ARGS
 
+# Patch TBB header — Blender's bundled TBB has
+#   static const kind_type binding_completed = kind_type(bound+1);
+# which Clang 22+ (current conda-forge) rejects as "integer value 2 outside
+# the valid range [0, 1] for the enumeration type". Cast through int.
+LIB_PLATFORM=""
+case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64) LIB_PLATFORM="linux_x64" ;;
+    Darwin-arm64) LIB_PLATFORM="macos_arm64" ;;
+    Darwin-x86_64) LIB_PLATFORM="macos_x64" ;;
+esac
+TBB_TASK_H="$SRC_DIR/lib/$LIB_PLATFORM/tbb/include/tbb/task.h"
+if [[ -n "$LIB_PLATFORM" && -f "$TBB_TASK_H" ]]; then
+    echo "==> Patching TBB header for clang 22 strictness"
+    sed -i.bak 's|kind_type(bound+1)|kind_type(int(bound)+1)|g' "$TBB_TASK_H" || true
+fi
+
 INSTALL_DIR="$SRC_DIR/_bpy_install"
 BUILD_DIR="$SRC_DIR/_bpy_build"
 mkdir -p "$INSTALL_DIR" "$BUILD_DIR"
@@ -109,6 +125,7 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G Ninja \
     -DWITH_INSTALL_PORTABLE=ON \
     -DWITH_AUDASPACE=ON \
     -DWITH_INSTALL_COPYRIGHT=ON \
+    -DWITH_XR_OPENXR=OFF \
     -DPYTHON_VERSION="$PY_VER" \
     -DPYTHON_ROOT_DIR="$PREFIX" \
     -DPYTHON_EXECUTABLE="$PREFIX/bin/python$PY_VER" \
