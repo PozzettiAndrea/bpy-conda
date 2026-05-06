@@ -11,8 +11,9 @@ free_disk_space: true
 
 build_matrix:
   combinations:
+    # Blender 3.6 LTS officially targets Python 3.10 but the build can be
+    # forced against newer Pythons too. Building the full 3.10–3.14 range
+    # so users have an LTS-stable bpy at every Python version they'd want.
     - blender_version: "3.6.23"
-      # Blender 3.6 supports Python 3.10 and 3.11. We target 3.10 here since
-      # 4.2 LTS already covers 3.11+.
-      python_versions: ["3.10"]
+      python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
   platforms: ["linux", "windows", "osx-arm64"]
