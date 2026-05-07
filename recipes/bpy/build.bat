@@ -42,18 +42,6 @@ set "BUILD_DIR=%SRC_DIR%\_bpy_build"
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
-REM Hide bundle's python when it doesn't match PY_VER — see
-REM recipes/bpy_lts_3_6/build.bat for the off-spec rationale.
-echo ==^> Hiding bundle's python dir if it doesn't match PY_VER=%PY_VER%
-if exist "%SRC_DIR%\lib\windows_x64\python\%PY_VER%" (
-    echo   bundle's python is %PY_VER% — match, leaving in place
-) else (
-    if exist "%SRC_DIR%\lib\windows_x64\python" (
-        echo   bundle's python != %PY_VER% — renaming bundle python dir
-        move /Y "%SRC_DIR%\lib\windows_x64\python" "%SRC_DIR%\lib\windows_x64\_python_unused" >nul
-    )
-)
-
 echo ==^> CMake configure
 REM Use Blender's official bpy_module.cmake preset (the `make bpy` entry
 REM point). It sets WITH_PYTHON_MODULE=ON, WITH_PYTHON_INSTALL=OFF,
