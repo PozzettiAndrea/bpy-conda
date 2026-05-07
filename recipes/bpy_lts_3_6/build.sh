@@ -269,12 +269,22 @@ if [[ "$(uname -s)" == "Linux" && -f "$SITE_PACKAGES/bpy/__init__.so" ]]; then
         [[ ${#missing[@]} -eq 0 ]] && { echo "==> DSO backstop: clean after round $((_round-1))"; break; }
         echo "==> DSO backstop round $_round: missing ${missing[*]}"
         for libname in "${missing[@]}"; do
+            # Try exact name first; fall back to "libfoo.so*" glob in case
+            # the bundle ships only `libsycl.so` (symlink) or
+            # `libsycl.so.6.1.0` (full version) but not `libsycl.so.6`
+            # (the SONAME the linker recorded).
             src="$(find "$SRC_DIR/lib/$LIB_PLATFORM" -name "$libname" 2>/dev/null | head -1)"
+            if [[ -z "$src" ]]; then
+                base="${libname%%.so*}"
+                src="$(find "$SRC_DIR/lib/$LIB_PLATFORM" -name "${base}.so*" 2>/dev/null | head -1)"
+            fi
             if [[ -n "$src" ]]; then
                 echo "  copying $libname  <-  $src"
-                cp -L "$src" "$BPY_LIB_BACKSTOP/"
+                # cp -L dereferences the symlink chain; rename the destination
+                # to the requested SONAME so the dynamic loader can resolve it.
+                cp -L "$src" "$BPY_LIB_BACKSTOP/$libname"
             else
-                echo "  WARN: $libname not in $SRC_DIR/lib/$LIB_PLATFORM"
+                echo "  WARN: $libname (and ${libname%%.so*}.so*) not in $SRC_DIR/lib/$LIB_PLATFORM"
             fi
         done
     done

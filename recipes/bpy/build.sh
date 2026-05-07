@@ -193,11 +193,15 @@ if [[ "$(uname -s)" == "Linux" && -f "$SITE_PACKAGES/bpy/__init__.so" ]]; then
         echo "==> DSO backstop round $_round: missing ${missing[*]}"
         for libname in "${missing[@]}"; do
             src="$(find "$SRC_DIR/lib/$LIB_PLATFORM" -name "$libname" 2>/dev/null | head -1)"
+            if [[ -z "$src" ]]; then
+                base="${libname%%.so*}"
+                src="$(find "$SRC_DIR/lib/$LIB_PLATFORM" -name "${base}.so*" 2>/dev/null | head -1)"
+            fi
             if [[ -n "$src" ]]; then
                 echo "  copying $libname  <-  $src"
-                cp -L "$src" "$BPY_LIB_BACKSTOP/"
+                cp -L "$src" "$BPY_LIB_BACKSTOP/$libname"
             else
-                echo "  WARN: $libname not in $SRC_DIR/lib/$LIB_PLATFORM"
+                echo "  WARN: $libname (and ${libname%%.so*}.so*) not in $SRC_DIR/lib/$LIB_PLATFORM"
             fi
         done
     done
