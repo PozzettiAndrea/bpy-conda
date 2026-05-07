@@ -79,6 +79,14 @@ if exist "%INSTALL_DIR%\bpy" (
     exit /b 1
 )
 
+REM DLL backstop — see recipes/bpy_lts_3_6/build.bat for rationale.
+echo ==^> DLL backstop: copying missing bundled DLLs into bpy\
+for /R "%SRC_DIR%\lib\windows_x64" %%F in (*.dll) do (
+    if not exist "%SITE_PACKAGES%\bpy\%%~nxF" (
+        copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
+    )
+)
+
 REM Strip bundled OpenMP runtime so the env-provided vc14_runtime's
 REM vcomp140.dll wins. Bundled libomp/libiomp5/vcomp inside bpy\ has
 REM higher priority via Windows DLL search order and would override the

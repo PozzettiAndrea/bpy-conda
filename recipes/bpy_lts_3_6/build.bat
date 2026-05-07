@@ -80,6 +80,23 @@ if exist "%INSTALL_DIR%\bpy" (
     exit /b 1
 )
 
+REM DLL backstop: Blender's Windows lib bundle ships many DLLs that the
+REM official `make_install` rules don't always copy into bpy\ for the
+REM Python module build. Symptom: at test time, Windows fails with
+REM "ImportError: DLL load failed... specified module could not be
+REM found". Counterpart of build.sh's DSO backstop on Linux.
+REM
+REM Brute-force solution: walk every *.dll in the lib bundle and copy
+REM missing ones into bpy\. Already-present files are skipped (xcopy /D
+REM /Y won't replace newer-or-equal). PyPI's bpy Windows wheel ships
+REM ~50 DLLs in the bpy/ root via a similar approach.
+echo ==^> DLL backstop: copying missing bundled DLLs into bpy\
+for /R "%SRC_DIR%\lib\windows_x64" %%F in (*.dll) do (
+    if not exist "%SITE_PACKAGES%\bpy\%%~nxF" (
+        copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
+    )
+)
+
 REM Strip bundled OpenMP runtime — see recipes/bpy/build.bat for rationale.
 echo ==^> Stripping bundled OpenMP runtimes from bpy\
 del /F /Q "%SITE_PACKAGES%\bpy\vcomp*.dll" 2>nul

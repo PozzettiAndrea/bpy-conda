@@ -76,6 +76,14 @@ if exist "%INSTALL_DIR%\bpy" (
     exit /b 1
 )
 
+REM DLL backstop — see recipes/bpy_lts_3_6/build.bat for rationale.
+echo ==^> DLL backstop: copying missing bundled DLLs into bpy\
+for /R "%SRC_DIR%\lib\windows_x64" %%F in (*.dll) do (
+    if not exist "%SITE_PACKAGES%\bpy\%%~nxF" (
+        copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
+    )
+)
+
 REM Strip bundled OpenMP runtime — see recipes/bpy/build.bat for rationale.
 echo ==^> Stripping bundled OpenMP runtimes from bpy\
 del /F /Q "%SITE_PACKAGES%\bpy\vcomp*.dll" 2>nul
