@@ -126,24 +126,11 @@ set "ACT_DIR=%PREFIX%\etc\conda\activate.d"
 set "DEACT_DIR=%PREFIX%\etc\conda\deactivate.d"
 if not exist "%ACT_DIR%" mkdir "%ACT_DIR%"
 if not exist "%DEACT_DIR%" mkdir "%DEACT_DIR%"
-> "%ACT_DIR%\bpy-tbb-malloc-disable.bat" (
-    echo @echo off
-    echo REM Disable tbbmalloc's malloc/free hijack — bpy ships tbb.dll which
-    echo REM auto-loads tbbmalloc_proxy.dll, causing STATUS_HEAP_CORRUPTION
-    echo REM on Windows when Python's allocator collides with it. See
-    echo REM Blender T88813 / projects.blender.org issue 148601.
-    echo set "_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT=%%TBB_MALLOC_DISABLE_REPLACEMENT%%"
-    echo set "TBB_MALLOC_DISABLE_REPLACEMENT=1"
-)
-> "%DEACT_DIR%\bpy-tbb-malloc-disable.bat" (
-    echo @echo off
-    echo if defined _BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT (
-    echo   set "TBB_MALLOC_DISABLE_REPLACEMENT=%%_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT%%"
-    echo ) else (
-    echo   set "TBB_MALLOC_DISABLE_REPLACEMENT="
-    echo )
-    echo set "_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT="
-)
+REM Use Python (in the build env) to write the activate.d / deactivate.d
+REM scripts. cmd.exe's `> file (block)` syntax barfs status 255 on the
+REM `%%` escapes we'd need for batch variable references.
+python -c "import os, pathlib; p = pathlib.Path(os.environ['ACT_DIR']) / 'bpy-tbb-malloc-disable.bat'; p.write_text('@echo off\r\nset \"_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT=%TBB_MALLOC_DISABLE_REPLACEMENT%\"\r\nset \"TBB_MALLOC_DISABLE_REPLACEMENT=1\"\r\n'); print('wrote', p)"
+python -c "import os, pathlib; p = pathlib.Path(os.environ['DEACT_DIR']) / 'bpy-tbb-malloc-disable.bat'; p.write_text('@echo off\r\nif defined _BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT (set \"TBB_MALLOC_DISABLE_REPLACEMENT=%_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT%\") else (set \"TBB_MALLOC_DISABLE_REPLACEMENT=\")\r\nset \"_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT=\"\r\n'); print('wrote', p)"
 
 echo ==^> Done.
 dir "%SITE_PACKAGES%\bpy"
