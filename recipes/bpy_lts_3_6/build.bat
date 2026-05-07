@@ -47,6 +47,24 @@ REM Blender 3.6's BKE_customdata.h triggers (CD_FAKE enum vs eCustomDataType).
 REM Blender uses /WX so warning → error. Disable just C5287.
 set "CL=/wd5287 %CL%"
 
+REM Hide Blender's bundled python (lib\windows_x64\python\<bundle_ver>)
+REM when it doesn't match our target. Otherwise platform_win32.cmake
+REM hardcodes ${LIBDIR}/python/<bundle_ver>/include + libs and bpy.pyd
+REM ends up linking against e.g. python310.dll while we wanted py3.11
+REM — at install/test time the env has only python311.dll and we get
+REM "ImportError: DLL load failed: specified module could not be
+REM found." Renaming forces CMake to pick up our explicit
+REM -DPYTHON_LIBRARY override.
+echo ==^> Hiding bundle's python dir if it doesn't match PY_VER=%PY_VER%
+if exist "%SRC_DIR%\lib\windows_x64\python\%PY_VER%" (
+    echo   bundle's python is %PY_VER% — match, leaving in place
+) else (
+    if exist "%SRC_DIR%\lib\windows_x64\python" (
+        echo   bundle's python != %PY_VER% — renaming bundle python dir
+        move /Y "%SRC_DIR%\lib\windows_x64\python" "%SRC_DIR%\lib\windows_x64\_python_unused" >nul
+    )
+)
+
 echo ==^> CMake configure
 REM Use Blender's official bpy_module.cmake preset — see recipes/bpy/build.bat
 REM for rationale (WITH_TBB_MALLOC_PROXY=OFF, WITH_WINDOWS_BUNDLE_CRT=OFF, ...).
