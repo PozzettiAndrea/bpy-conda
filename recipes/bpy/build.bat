@@ -98,5 +98,9 @@ del /F /Q "%SITE_PACKAGES%\bpy\vcomp*.dll" 2>nul
 del /F /Q "%SITE_PACKAGES%\bpy\libomp.dll" 2>nul
 del /F /Q "%SITE_PACKAGES%\bpy\libiomp5md.dll" 2>nul
 
+REM Strip bundled tbbmalloc_proxy — see recipes/bpy_lts_3_6/build.bat.
+echo ==^> Stripping bundled tbbmalloc_proxy from bpy\ (heap-corruption fix)
+del /F /Q "%SITE_PACKAGES%\bpy\tbbmalloc_proxy*.dll" 2>nul
+
 echo ==^> Done.
 dir "%SITE_PACKAGES%\bpy"

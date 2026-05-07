@@ -103,5 +103,15 @@ del /F /Q "%SITE_PACKAGES%\bpy\vcomp*.dll" 2>nul
 del /F /Q "%SITE_PACKAGES%\bpy\libomp.dll" 2>nul
 del /F /Q "%SITE_PACKAGES%\bpy\libiomp5md.dll" 2>nul
 
+REM Strip bundled tbbmalloc_proxy. Windows counterpart of bpy_module.cmake's
+REM `WITH_TBB_MALLOC_PROXY=OFF`: that flag disables LINK-time use, but tbb.dll
+REM in the same directory auto-loads tbbmalloc_proxy.dll via the SxS / module-
+REM init path, which then hijacks malloc/free across the whole process and
+REM crashes with STATUS_HEAP_CORRUPTION (0xC0000374) when Python's own
+REM allocator frees memory through tbbmalloc's free. Same bug as Linux's
+REM munmap_chunk(): invalid pointer, just a different abort path.
+echo ==^> Stripping bundled tbbmalloc_proxy from bpy\ (heap-corruption fix)
+del /F /Q "%SITE_PACKAGES%\bpy\tbbmalloc_proxy*.dll" 2>nul
+
 echo ==^> Done.
 dir "%SITE_PACKAGES%\bpy"
