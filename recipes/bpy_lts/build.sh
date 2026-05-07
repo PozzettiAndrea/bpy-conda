@@ -235,6 +235,32 @@ elif [ -d "$INSTALL_DIR" ]; then
     cp -R "$BPY_PATH" "$SITE_PACKAGES/"
 fi
 
+# DSO backstop on Linux — see recipes/bpy_lts_3_6/build.sh for rationale.
+if [[ "$(uname -s)" == "Linux" && -f "$SITE_PACKAGES/bpy/__init__.so" ]]; then
+    BPY_LIB_BACKSTOP="$SITE_PACKAGES/bpy/lib"
+    mkdir -p "$BPY_LIB_BACKSTOP"
+    for _round in 1 2 3 4 5; do
+        missing=()
+        while IFS= read -r line; do
+            if [[ "$line" == *"not found"* ]]; then
+                lib="${line%% =>*}"; lib="${lib// /}"
+                [[ -n "$lib" && "$lib" != "linux-vdso.so.1" ]] && missing+=("$lib")
+            fi
+        done < <(LD_LIBRARY_PATH="$BPY_LIB_BACKSTOP" ldd "$SITE_PACKAGES/bpy/__init__.so" 2>/dev/null || true)
+        [[ ${#missing[@]} -eq 0 ]] && { echo "==> DSO backstop: clean after round $((_round-1))"; break; }
+        echo "==> DSO backstop round $_round: missing ${missing[*]}"
+        for libname in "${missing[@]}"; do
+            src="$(find "$SRC_DIR/lib/$LIB_PLATFORM" -name "$libname" 2>/dev/null | head -1)"
+            if [[ -n "$src" ]]; then
+                echo "  copying $libname  <-  $src"
+                cp -L "$src" "$BPY_LIB_BACKSTOP/"
+            else
+                echo "  WARN: $libname not in $SRC_DIR/lib/$LIB_PLATFORM"
+            fi
+        done
+    done
+fi
+
 # Strip bundled OpenMP runtime so the env-provided one (llvm-openmp /
 # libgomp from conda-forge) wins. Bundled libomp inside bpy/lib/ has
 # higher priority via $ORIGIN/lib rpath and would override the env's
