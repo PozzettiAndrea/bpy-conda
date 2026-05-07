@@ -80,20 +80,48 @@ if exist "%INSTALL_DIR%\bpy" (
     exit /b 1
 )
 
-REM DLL backstop: Blender's Windows lib bundle ships many DLLs that the
-REM official `make_install` rules don't always copy into bpy\ for the
-REM Python module build. Symptom: at test time, Windows fails with
-REM "ImportError: DLL load failed... specified module could not be
-REM found". Counterpart of build.sh's DSO backstop on Linux.
+REM DLL backstop: Blender's Windows lib bundle ships many DLLs that
+REM `make_install` doesn't always copy into bpy\. Walk lib\windows_x64
+REM and copy missing ones — but EXCLUDE filenames that would conflict
+REM with the conda env's CRT/python/CRYPT/SQL runtimes:
 REM
-REM Brute-force solution: walk every *.dll in the lib bundle and copy
-REM missing ones into bpy\. Already-present files are skipped (xcopy /D
-REM /Y won't replace newer-or-equal). PyPI's bpy Windows wheel ships
-REM ~50 DLLs in the bpy/ root via a similar approach.
-echo ==^> DLL backstop: copying missing bundled DLLs into bpy\
+REM   python*.dll        — the bundle ships the Python it was built
+REM                        against (cp310 for 3.6, cp311 for 4.2,
+REM                        cp313 for 5.1). Copying that into bpy\ on
+REM                        an off-spec env (e.g. 4.2 + py3.12) loads
+REM                        TWO libpython instances → cross-runtime
+REM                        PyMem_Malloc/PyObject_Free →
+REM                        STATUS_HEAP_CORRUPTION (0xC0000374).
+REM   vcruntime*, msvcp*, ucrtbase*  — env's vc14_runtime owns these.
+REM   vcomp*, libomp*, libiomp5*     — already stripped below.
+REM   tbbmalloc_proxy*               — already stripped below.
+REM
+REM Without this skip-list, official combos pass (bundle's python ==
+REM env's python, no conflict) but off-spec combos crash deterministically.
+echo ==^> DLL backstop: copying missing bundled DLLs into bpy\ (skip-list applied)
 for /R "%SRC_DIR%\lib\windows_x64" %%F in (*.dll) do (
     if not exist "%SITE_PACKAGES%\bpy\%%~nxF" (
-        copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
+        echo %%~nxF | findstr /B /I /R "^python[0-9] ^vcruntime ^msvcp ^ucrtbase ^vcomp ^libomp ^libiomp5 ^tbbmalloc_proxy" >nul && (
+            echo   skip    %%~nxF
+        ) || (
+            copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
+        )
+    )
+)
+REM Belt-and-suspenders: explicitly remove any python*.dll that Blender's
+REM own install rules may have placed in bpy\ before our backstop ran.
+REM This is the smoking-gun check Expert B identified (two libpython
+REM coexisting → STATUS_HEAP_CORRUPTION on off-spec combos).
+echo ==^> Removing stray python*.dll from bpy\ (off-spec heap-corruption fix)
+del /F /Q "%SITE_PACKAGES%\bpy\python*.dll" 2>nul
+
+REM Diagnostic — confirm bpy\ has no conflicting python runtime, log
+REM bpy.pyd's actual python import.
+echo ==^> Diagnostic: python*.dll and bpy.pyd's import table
+dir /B "%SITE_PACKAGES%\bpy\python*.dll" 2>nul && echo   ^(unexpected — should be empty^) || echo   none ^(good^)
+where dumpbin >nul 2>&1 && (
+    for %%P in ("%SITE_PACKAGES%\bpy\bpy.pyd" "%SITE_PACKAGES%\bpy\__init__.pyd") do (
+        if exist %%P dumpbin /DEPENDENTS %%P 2>nul | findstr /R /I "python[0-9]*\.dll" 2>nul
     )
 )
 

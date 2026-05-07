@@ -80,12 +80,23 @@ if exist "%INSTALL_DIR%\bpy" (
 )
 
 REM DLL backstop — see recipes/bpy_lts_3_6/build.bat for rationale.
-echo ==^> DLL backstop: copying missing bundled DLLs into bpy\
+echo ==^> DLL backstop: copying missing bundled DLLs into bpy\ (skip-list applied)
+REM Skip python*/vcruntime*/msvcp*/ucrtbase*/vcomp*/libomp*/libiomp5*/tbbmalloc_proxy*
+REM — see recipes/bpy_lts_3_6/build.bat for the off-spec heap-corruption rationale.
 for /R "%SRC_DIR%\lib\windows_x64" %%F in (*.dll) do (
     if not exist "%SITE_PACKAGES%\bpy\%%~nxF" (
-        copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
+        echo %%~nxF | findstr /B /I /R "^python[0-9] ^vcruntime ^msvcp ^ucrtbase ^vcomp ^libomp ^libiomp5 ^tbbmalloc_proxy" >nul && (
+            echo   skip    %%~nxF
+        ) || (
+            copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
+        )
     )
 )
+echo ==^> Removing stray python*.dll from bpy\ (off-spec heap-corruption fix)
+del /F /Q "%SITE_PACKAGES%\bpy\python*.dll" 2>nul
+
+echo ==^> Diagnostic: python*.dll inside bpy\ ^(should be empty^)
+dir /B "%SITE_PACKAGES%\bpy\python*.dll" 2>nul && echo   UNEXPECTED || echo   none
 
 REM Strip bundled OpenMP runtime so the env-provided vc14_runtime's
 REM vcomp140.dll wins. Bundled libomp/libiomp5/vcomp inside bpy\ has
