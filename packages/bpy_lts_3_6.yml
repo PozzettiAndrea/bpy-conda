@@ -10,10 +10,17 @@ source_tag: "v3.6.23"
 free_disk_space: true
 
 build_matrix:
+  # Blender 3.6 LTS source uses CPython internals (`_PyArg_Parser` etc.)
+  # that Python 3.12 removed. There is no source patch on Blender's
+  # 3.6-LTS branch to support newer Pythons. So linux+osx-arm64 are
+  # capped at py3.10/3.11. Windows happens to compile against py3.12+
+  # because the Windows build path doesn't hit the same internal-API
+  # paths, so we keep the full python range there.
   combinations:
-    # Blender 3.6 LTS officially targets Python 3.10 but the build can be
-    # forced against newer Pythons too. Building the full 3.10–3.14 range
-    # so users have an LTS-stable bpy at every Python version they'd want.
     - blender_version: "3.6.23"
-      python_versions: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+      python_versions: ["3.10", "3.11"]
+      platforms: ["linux", "osx-arm64", "windows"]
+    - blender_version: "3.6.23"
+      python_versions: ["3.12", "3.13", "3.14"]
+      platforms: ["windows"]
   platforms: ["linux", "windows", "osx-arm64"]

@@ -30,10 +30,17 @@ def load_package_config(package: str) -> dict:
 
 
 def get_combinations(config: dict) -> list[dict]:
-    """Expand package config into list of {blender_version, python, platform} combos."""
-    platforms = config.get("build_matrix", {}).get("platforms", ["linux"])
+    """Expand package config into list of {blender_version, python, platform} combos.
+
+    Each combination entry may carry its own `platforms` list (used to gate
+    cells we already know don't build, e.g. Blender 3.6's CPython-ABI
+    incompatibility on linux+osx-arm64 for py3.12+); otherwise the
+    package-level `platforms` list applies.
+    """
+    package_platforms = config.get("build_matrix", {}).get("platforms", ["linux"])
     combos = []
     for entry in config["build_matrix"]["combinations"]:
+        platforms = entry.get("platforms", package_platforms)
         for py in entry["python_versions"]:
             for platform in platforms:
                 if platform not in PLATFORM_MAP:

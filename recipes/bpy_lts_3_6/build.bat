@@ -113,5 +113,37 @@ REM munmap_chunk(): invalid pointer, just a different abort path.
 echo ==^> Stripping bundled tbbmalloc_proxy from bpy\ (heap-corruption fix)
 del /F /Q "%SITE_PACKAGES%\bpy\tbbmalloc_proxy*.dll" 2>nul
 
+REM Stripping isn't sufficient: conda-forge's `tbb` package (transitively
+REM pulled in via vc14_runtime) ships its own `Library\bin\tbbmalloc_proxy.dll`
+REM in the env, and Windows DLL search picks it up at runtime. Use the
+REM Blender-team-recommended workaround (T88813, #148601): set
+REM `TBB_MALLOC_DISABLE_REPLACEMENT=1` so the proxy refuses to hijack the
+REM CRT allocator at module init. Ship it as an activate.d script so the
+REM env-var is set whenever the user `conda activate`s an env with bpy.
+REM (Conda activates run *.bat from Library\etc\conda\activate.d on Windows.)
+echo ==^> Installing TBB_MALLOC_DISABLE_REPLACEMENT activate.d script
+set "ACT_DIR=%PREFIX%\etc\conda\activate.d"
+set "DEACT_DIR=%PREFIX%\etc\conda\deactivate.d"
+if not exist "%ACT_DIR%" mkdir "%ACT_DIR%"
+if not exist "%DEACT_DIR%" mkdir "%DEACT_DIR%"
+> "%ACT_DIR%\bpy-tbb-malloc-disable.bat" (
+    echo @echo off
+    echo REM Disable tbbmalloc's malloc/free hijack — bpy ships tbb.dll which
+    echo REM auto-loads tbbmalloc_proxy.dll, causing STATUS_HEAP_CORRUPTION
+    echo REM on Windows when Python's allocator collides with it. See
+    echo REM Blender T88813 / projects.blender.org issue 148601.
+    echo set "_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT=%%TBB_MALLOC_DISABLE_REPLACEMENT%%"
+    echo set "TBB_MALLOC_DISABLE_REPLACEMENT=1"
+)
+> "%DEACT_DIR%\bpy-tbb-malloc-disable.bat" (
+    echo @echo off
+    echo if defined _BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT (
+    echo   set "TBB_MALLOC_DISABLE_REPLACEMENT=%%_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT%%"
+    echo ) else (
+    echo   set "TBB_MALLOC_DISABLE_REPLACEMENT="
+    echo )
+    echo set "_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT="
+)
+
 echo ==^> Done.
 dir "%SITE_PACKAGES%\bpy"

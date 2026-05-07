@@ -90,9 +90,30 @@ del /F /Q "%SITE_PACKAGES%\bpy\vcomp*.dll" 2>nul
 del /F /Q "%SITE_PACKAGES%\bpy\libomp.dll" 2>nul
 del /F /Q "%SITE_PACKAGES%\bpy\libiomp5md.dll" 2>nul
 
-REM Strip bundled tbbmalloc_proxy — see recipes/bpy_lts_3_6/build.bat.
+REM Strip bundled tbbmalloc_proxy + ship TBB_MALLOC_DISABLE_REPLACEMENT
+REM activate.d script. See recipes/bpy_lts_3_6/build.bat for full rationale.
 echo ==^> Stripping bundled tbbmalloc_proxy from bpy\ (heap-corruption fix)
 del /F /Q "%SITE_PACKAGES%\bpy\tbbmalloc_proxy*.dll" 2>nul
+
+echo ==^> Installing TBB_MALLOC_DISABLE_REPLACEMENT activate.d script
+set "ACT_DIR=%PREFIX%\etc\conda\activate.d"
+set "DEACT_DIR=%PREFIX%\etc\conda\deactivate.d"
+if not exist "%ACT_DIR%" mkdir "%ACT_DIR%"
+if not exist "%DEACT_DIR%" mkdir "%DEACT_DIR%"
+> "%ACT_DIR%\bpy-tbb-malloc-disable.bat" (
+    echo @echo off
+    echo set "_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT=%%TBB_MALLOC_DISABLE_REPLACEMENT%%"
+    echo set "TBB_MALLOC_DISABLE_REPLACEMENT=1"
+)
+> "%DEACT_DIR%\bpy-tbb-malloc-disable.bat" (
+    echo @echo off
+    echo if defined _BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT (
+    echo   set "TBB_MALLOC_DISABLE_REPLACEMENT=%%_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT%%"
+    echo ) else (
+    echo   set "TBB_MALLOC_DISABLE_REPLACEMENT="
+    echo )
+    echo set "_BPY_PRIOR_TBB_MALLOC_DISABLE_REPLACEMENT="
+)
 
 echo ==^> Done.
 dir "%SITE_PACKAGES%\bpy"
