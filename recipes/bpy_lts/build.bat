@@ -43,6 +43,11 @@ set "BUILD_DIR=%SRC_DIR%\_bpy_build"
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
+REM Patch platform_win32.cmake to respect external -DPYTHON_* flags
+REM — see recipes/bpy_lts_3_6/build.bat + scripts/patch_blender_win32_python.py.
+echo ==^> Patching platform_win32.cmake to respect external -DPYTHON_* flags
+python "%RECIPE_DIR%\..\..\scripts\patch_blender_win32_python.py" "%SRC_DIR%"
+
 echo ==^> CMake configure
 REM Use Blender's official bpy_module.cmake preset — see recipes/bpy/build.bat
 REM for rationale (WITH_TBB_MALLOC_PROXY=OFF, WITH_WINDOWS_BUNDLE_CRT=OFF, ...).

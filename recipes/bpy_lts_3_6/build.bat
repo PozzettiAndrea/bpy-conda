@@ -47,14 +47,16 @@ REM Blender 3.6's BKE_customdata.h triggers (CD_FAKE enum vs eCustomDataType).
 REM Blender uses /WX so warning → error. Disable just C5287.
 set "CL=/wd5287 %CL%"
 
-REM NOTE: an earlier attempt renamed lib\windows_x64\python\ when
-REM PY_VER didn't match the bundle's python — but Blender 3.6's
-REM platform_win32.cmake hardcodes the lookup at
-REM `${LIBDIR}/python/310` (no dot), and the rename also broke the
-REM official combo. The off-spec combos (3.6+py3.11+, 4.2+py3.12+,
-REM 5.1+py3.14) require source-level Blender patches; we accept
-REM PyPI's per-Blender-Python pinning instead. Cells dropped from
-REM packages/*.yml.
+REM Patch Blender's platform_win32.cmake to respect externally-supplied
+REM -DPYTHON_VERSION / -DPYTHON_LIBRARY / -DPYTHON_INCLUDE_DIR /
+REM -DPYTHON_EXECUTABLE flags. Stock Blender unconditionally overrides
+REM these to the bundle's pinned CPython (3.10 for 3.6 LTS), forcing
+REM bpy.pyd to link against the wrong python.dll on off-spec combos
+REM (3.6+py3.11+, 4.2+py3.12+, 5.1+py3.14). See the patch script for
+REM the full rationale.
+echo ==^> Patching platform_win32.cmake to respect external -DPYTHON_* flags
+python "%RECIPE_DIR%\..\..\scripts\patch_blender_win32_python.py" "%SRC_DIR%"
+
 echo ==^> CMake configure
 REM Use Blender's official bpy_module.cmake preset — see recipes/bpy/build.bat
 REM for rationale (WITH_TBB_MALLOC_PROXY=OFF, WITH_WINDOWS_BUNDLE_CRT=OFF, ...).
