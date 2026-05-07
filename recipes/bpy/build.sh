@@ -185,7 +185,9 @@ if [[ "$(uname -s)" == "Linux" && -f "$SITE_PACKAGES/bpy/__init__.so" ]]; then
         missing=()
         while IFS= read -r line; do
             if [[ "$line" == *"not found"* ]]; then
-                lib="${line%% =>*}"; lib="${lib// /}"
+                lib="${line#"${line%%[![:space:]]*}"}"
+                lib="${lib%% =>*}"
+                lib="${lib%% }"
                 [[ -n "$lib" && "$lib" != "linux-vdso.so.1" ]] && missing+=("$lib")
             fi
         done < <(LD_LIBRARY_PATH="$BPY_LIB_BACKSTOP" ldd "$SITE_PACKAGES/bpy/__init__.so" 2>/dev/null || true)
