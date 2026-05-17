@@ -47,6 +47,13 @@ REM — see recipes/bpy_lts_3_6/build.bat + scripts/patch_blender_win32_python.p
 echo ==^> Patching platform_win32.cmake to respect external -DPYTHON_* flags
 python "%RECIPE_DIR%\..\..\scripts\patch_blender_win32_python.py" "%SRC_DIR%"
 
+REM Patch mathutils_noise.cc to #include <ctime>. CPython 3.13+ stopped
+REM transitively re-exporting <time.h> via <Python.h>, so the existing
+REM time(nullptr) call in mathutils_noise.cc fails MSVC compile with
+REM "error C3861: 'time': identifier not found". Idempotent.
+echo ==^> Patching mathutils_noise.cc for CPython 3.13+ header hygiene
+python "%RECIPE_DIR%\..\..\scripts\patch_blender_mathutils_noise.py" "%SRC_DIR%"
+
 echo ==^> CMake configure
 REM Use Blender's official bpy_module.cmake preset (the `make bpy` entry
 REM point). It sets WITH_PYTHON_MODULE=ON, WITH_PYTHON_INSTALL=OFF,
