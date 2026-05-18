@@ -23,13 +23,14 @@ source:
   depth: 1
 
 build:
-  # _1: strip vendored Windows TBB (tbb12.dll, tbbmalloc.dll) and pull in
-  # conda-forge `tbb` at run-time, so torch and bpy share one TBB instead
-  # of fighting at LoadLibrary time.
-  # _2: broaden the TBB strip glob in build.bat — `tbb12*.dll` matched
-  # nothing on the actual bundle (Blender ships tbb.dll / tbb_debug.dll).
-  # See recipes/bpy/recipe.yaml for full rationale.
-  number: 2
+  # _1/_2: stripped bundled TBB, depended on conda-forge `tbb` run-dep.
+  # Did not actually fix the loader race — see recipes/bpy/recipe.yaml.
+  # _3: full IAT mangling via scripts/mangle_bpy_dlls.py. Renames every
+  # bundled DLL in bpy\ to a "bpy_*" private namespace and rewrites
+  # bpy.pyd / sibling DLL import tables to match. Self-contained bpy,
+  # no env tbb dependency, no possible basename collision with torch
+  # / embreex. See recipes/bpy/recipe.yaml for the full rationale.
+  number: 3
   # No hyphens in the build string — anaconda.org's repodata indexer parses
   # `{name}-{version}-{build}.conda` filenames; a hyphen in the build string
   # (e.g. "osx-arm64") makes the indexer mis-split and the package shows up
@@ -74,6 +75,9 @@ requirements:
     - setuptools
     # Audaspace's Python bindings #include <numpy/ndarrayobject.h>.
     - numpy
+    # py-lief drives scripts/mangle_bpy_dlls.py — rewrites bundled
+    # PE import tables. Build-time only. See recipes/bpy/recipe.yaml.
+    - py-lief >=0.16
     # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads
@@ -116,11 +120,9 @@ requirements:
     - if: win
       then:
         - vc14_runtime
-        # TBB runtime not bundled (build.bat strips tbb*.dll — covers
-        # tbb.dll / tbb_debug.dll / tbb12* / tbbmalloc* / tbbmalloc_proxy*).
-        # Shared with torch / scipy / numpy-MKL to avoid the loader-race
-        # STATUS_ENTRYPOINT_NOT_FOUND symptom.
-        - tbb
+        # No `tbb` run-dep: bpy bundles its own TBB under a private
+        # "bpy_*" namespace via scripts/mangle_bpy_dlls.py. See
+        # recipes/bpy/recipe.yaml for the loader-race rationale.
 
 about:
   homepage: https://www.blender.org/

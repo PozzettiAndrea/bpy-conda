@@ -23,16 +23,22 @@ source:
 
 build:
   # _1: strip vendored Windows TBB (tbb12.dll, tbbmalloc.dll) and pull in
-  # conda-forge `tbb` at run-time, so torch and bpy share one TBB instead
-  # of fighting at LoadLibrary time (STATUS_ENTRYPOINT_NOT_FOUND when
-  # torch's tbb12.dll won the loader race and bpy's C extension called a
-  # symbol that didn't exist there).
-  # _2: broaden the TBB strip glob in build.bat. The _1 build used
-  # `tbb12*.dll` + `tbbmalloc.dll` which matched ZERO files — Windows
-  # Blender actually ships `tbb.dll` and `tbb_debug.dll`, not tbb12.
-  # The vendored DLLs survived staging and the loader-race fix never
-  # took effect. Replaced with `tbb*.dll` (one glob, catches everything).
-  number: 2
+  # conda-forge `tbb` at run-time. Did not work: conda-forge `tbb` provides
+  # `tbb12.dll`, but bpy.pyd's IAT (depending on bundle vintage) wants either
+  # `tbb.dll` (3.6/4.2 LTS classic TBB 2020) or a different `tbb12.dll` ABI
+  # (5.1 oneTBB 2022.3); env-provided tbb has the wrong ABI either way.
+  # _2: broaden the TBB strip glob from `tbb12*.dll` to `tbb*.dll`. Now
+  # caught bpy.pyd's actual dependency too, so the rattler-build auto
+  # `import bpy` test failed with `DLL load failed`.
+  # _3: full IAT mangling. scripts/mangle_bpy_dlls.py renames every
+  # bundled DLL in bpy\ to a "bpy_*" private namespace and patches the
+  # PE import table of every .pyd/.dll in bpy\ to match. Same technique
+  # delvewheel uses for wheels. Windows' basename-already-loaded cache
+  # can no longer collide on a name nobody else ships, so the loader
+  # race against torch / embreex is properly resolved. The conda-forge
+  # `tbb` run-dep is dropped (irrelevant — bpy is now self-contained
+  # under its private namespace).
+  number: 3
   # No hyphens in the build string. anaconda.org's repodata indexer parses
   # `{name}-{version}-{build}.conda` filenames; a hyphen in the build string
   # (e.g. "osx-arm64") makes the indexer mis-split and the package shows up
@@ -78,6 +84,11 @@ requirements:
     # Audaspace's Python bindings #include <numpy/ndarrayobject.h> for the
     # animateable-property API (extern/audaspace/bindings/python/).
     - numpy
+    # py-lief is used by scripts/mangle_bpy_dlls.py to rewrite the PE
+    # import tables of every bundled .pyd/.dll after `cmake --target
+    # install`, mapping bundled DLL names into a private "bpy_*"
+    # namespace. lief is needed only at build time, not at run time.
+    - py-lief >=0.16
     # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads
@@ -120,14 +131,11 @@ requirements:
         # MSVC-built bpy.pyd uses vcomp140.dll which ships in vc14_runtime;
         # vc14_runtime is already pulled in transitively via python on Windows.
         - vc14_runtime
-        # TBB runtime is NOT bundled (build.bat strips tbb*.dll from bpy\
-        # during staging — covers tbb.dll / tbb_debug.dll / tbb12*.dll /
-        # tbbmalloc*.dll / tbbmalloc_proxy*.dll). One TBB per env, shared
-        # with torch / scipy / numpy-MKL — prevents the loader-race
-        # STATUS_ENTRYPOINT_NOT_FOUND symptom where torch's tbb12.dll
-        # loaded first and bpy's C extension called a symbol that didn't
-        # exist in torch's TBB build.
-        - tbb
+        # No conda-forge `tbb` run-dep. bpy's bundled TBB is renamed via
+        # scripts/mangle_bpy_dlls.py into a "bpy_*" private namespace
+        # before packaging, so bpy's tbb12 import (now bpy_tbb12.dll)
+        # cannot collide with torch / embreex / any other package that
+        # ships its own tbb12.dll. bpy is self-contained on Windows.
 
 about:
   homepage: https://www.blender.org/
