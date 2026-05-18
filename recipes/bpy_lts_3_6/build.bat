@@ -111,15 +111,16 @@ REM                        PyMem_Malloc/PyObject_Free →
 REM                        STATUS_HEAP_CORRUPTION (0xC0000374).
 REM   vcruntime*, msvcp*, ucrtbase*  — env's vc14_runtime owns these.
 REM   vcomp*, libomp*, libiomp5*     — already stripped below.
-REM   tbbmalloc_proxy*               — already stripped below.
-REM   tbb12*, tbbmalloc              — stripped below (loader-race with torch).
+REM   tbb*                            — stripped below (loader-race with torch).
+REM                                     Covers tbb.dll, tbb_debug.dll, tbb12*,
+REM                                     tbbmalloc*, tbbmalloc_proxy*.
 REM
 REM Without this skip-list, official combos pass (bundle's python ==
 REM env's python, no conflict) but off-spec combos crash deterministically.
 echo ==^> DLL backstop: copying missing bundled DLLs into bpy\ (skip-list applied)
 for /R "%SRC_DIR%\lib\windows_x64" %%F in (*.dll) do (
     if not exist "%SITE_PACKAGES%\bpy\%%~nxF" (
-        echo %%~nxF | findstr /B /I /R "^python[0-9] ^vcruntime ^msvcp ^ucrtbase ^vcomp ^libomp ^libiomp5 ^tbb12 ^tbbmalloc" >nul && (
+        echo %%~nxF | findstr /B /I /R "^python[0-9] ^vcruntime ^msvcp ^ucrtbase ^vcomp ^libomp ^libiomp5 ^tbb" >nul && (
             echo   skip    %%~nxF
         ) || (
             copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
@@ -159,16 +160,21 @@ REM munmap_chunk(): invalid pointer, just a different abort path.
 echo ==^> Stripping bundled tbbmalloc_proxy from bpy\ (heap-corruption fix)
 del /F /Q "%SITE_PACKAGES%\bpy\tbbmalloc_proxy*.dll" 2>nul
 
-REM Strip bundled tbb12 / tbbmalloc so the env-provided conda-forge `tbb`
-REM package wins. Without this, bpy's bundled tbb12.dll loads from the bpy\
-REM directory and Windows DLL search resolves subsequent loads (e.g. torch's
-REM tbb12 import) to bpy's copy, but the inverse order — torch loads first
-REM in a worker subprocess that imports torch eagerly — produces
-REM STATUS_ENTRYPOINT_NOT_FOUND because the symbols differ between TBB
-REM versions. Shipping a single env-managed `tbb` resolves both directions.
-echo ==^> Stripping bundled tbb12 / tbbmalloc from bpy\ (loader-race fix)
-del /F /Q "%SITE_PACKAGES%\bpy\tbb12*.dll" 2>nul
-del /F /Q "%SITE_PACKAGES%\bpy\tbbmalloc.dll" 2>nul
+REM Strip ALL bundled tbb-prefixed DLLs so the env-provided conda-forge `tbb`
+REM package wins. Naive `tbb12*.dll` matched nothing on the actual bundle —
+REM Windows Blender ships tbb.dll and tbb_debug.dll (NOT tbb12.dll), so the
+REM previous narrow glob left the loader-race in place. Now `tbb*.dll`
+REM covers tbb.dll, tbb_debug.dll, tbb12*.dll, tbbmalloc*.dll, and
+REM tbbmalloc_proxy*.dll in one shot.
+REM
+REM Without this, bpy's bundled tbb.dll loads from the bpy\ directory and
+REM Windows DLL search resolves subsequent loads (e.g. torch's tbb12 import)
+REM to bpy's copy, but the inverse order — torch loads first in a worker
+REM subprocess that imports torch eagerly — produces STATUS_ENTRYPOINT_NOT_FOUND
+REM because the symbols differ between TBB versions. Shipping a single
+REM env-managed `tbb` resolves both directions.
+echo ==^> Stripping bundled tbb*.dll from bpy\ (loader-race fix)
+del /F /Q "%SITE_PACKAGES%\bpy\tbb*.dll" 2>nul
 
 REM Stripping isn't sufficient: conda-forge's `tbb` package (transitively
 REM pulled in via vc14_runtime) ships its own `Library\bin\tbbmalloc_proxy.dll`

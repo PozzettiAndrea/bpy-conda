@@ -27,7 +27,12 @@ build:
   # of fighting at LoadLibrary time (STATUS_ENTRYPOINT_NOT_FOUND when
   # torch's tbb12.dll won the loader race and bpy's C extension called a
   # symbol that didn't exist there).
-  number: 1
+  # _2: broaden the TBB strip glob in build.bat. The _1 build used
+  # `tbb12*.dll` + `tbbmalloc.dll` which matched ZERO files — Windows
+  # Blender actually ships `tbb.dll` and `tbb_debug.dll`, not tbb12.
+  # The vendored DLLs survived staging and the loader-race fix never
+  # took effect. Replaced with `tbb*.dll` (one glob, catches everything).
+  number: 2
   # No hyphens in the build string. anaconda.org's repodata indexer parses
   # `{name}-{version}-{build}.conda` filenames; a hyphen in the build string
   # (e.g. "osx-arm64") makes the indexer mis-split and the package shows up
@@ -115,12 +120,13 @@ requirements:
         # MSVC-built bpy.pyd uses vcomp140.dll which ships in vc14_runtime;
         # vc14_runtime is already pulled in transitively via python on Windows.
         - vc14_runtime
-        # TBB runtime is NOT bundled (build.bat strips tbb12*.dll /
-        # tbbmalloc.dll from bpy\ during staging, alongside the existing
-        # tbbmalloc_proxy strip). One TBB per env, shared with torch / scipy
-        # / numpy-MKL — prevents the loader-race STATUS_ENTRYPOINT_NOT_FOUND
-        # symptom where torch's tbb12.dll loaded first and bpy's C extension
-        # called a symbol that didn't exist in torch's TBB build.
+        # TBB runtime is NOT bundled (build.bat strips tbb*.dll from bpy\
+        # during staging — covers tbb.dll / tbb_debug.dll / tbb12*.dll /
+        # tbbmalloc*.dll / tbbmalloc_proxy*.dll). One TBB per env, shared
+        # with torch / scipy / numpy-MKL — prevents the loader-race
+        # STATUS_ENTRYPOINT_NOT_FOUND symptom where torch's tbb12.dll
+        # loaded first and bpy's C extension called a symbol that didn't
+        # exist in torch's TBB build.
         - tbb
 
 about:

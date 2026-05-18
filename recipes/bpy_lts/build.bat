@@ -89,15 +89,15 @@ if exist "%INSTALL_DIR%\bpy" (
 )
 
 REM DLL backstop with skip-list — see recipes/bpy_lts_3_6/build.bat for rationale.
-REM Skip python*/vcruntime*/msvcp*/ucrtbase*/vcomp*/libomp*/libiomp5*/tbb12*/tbbmalloc*.
+REM Skip python*/vcruntime*/msvcp*/ucrtbase*/vcomp*/libomp*/libiomp5*/tbb* .
 echo ==^> DLL backstop: copying missing bundled DLLs into bpy\ (skip-list applied)
-REM tbb12 / tbbmalloc are stripped here too so the env-provided conda-forge
-REM `tbb` package (now a run-dep) wins; otherwise the backstop copies bpy's
-REM vendored TBB into the bpy\ directory and Windows DLL search finds those
-REM first, re-introducing the STATUS_ENTRYPOINT_NOT_FOUND race with torch.
+REM All tbb-prefixed DLLs are stripped here too so the env-provided conda-forge
+REM `tbb` package (a run-dep) wins; otherwise the backstop copies bpy's vendored
+REM TBB into the bpy\ directory and Windows DLL search finds those first,
+REM re-introducing the STATUS_ENTRYPOINT_NOT_FOUND race with torch.
 for /R "%SRC_DIR%\lib\windows_x64" %%F in (*.dll) do (
     if not exist "%SITE_PACKAGES%\bpy\%%~nxF" (
-        echo %%~nxF | findstr /B /I /R "^python[0-9] ^vcruntime ^msvcp ^ucrtbase ^vcomp ^libomp ^libiomp5 ^tbb12 ^tbbmalloc" >nul && (
+        echo %%~nxF | findstr /B /I /R "^python[0-9] ^vcruntime ^msvcp ^ucrtbase ^vcomp ^libomp ^libiomp5 ^tbb" >nul && (
             echo   skip    %%~nxF
         ) || (
             copy /Y "%%F" "%SITE_PACKAGES%\bpy\" >nul && echo   copied %%~nxF
@@ -121,11 +121,11 @@ REM activate.d script. See recipes/bpy_lts_3_6/build.bat for full rationale.
 echo ==^> Stripping bundled tbbmalloc_proxy from bpy\ (heap-corruption fix)
 del /F /Q "%SITE_PACKAGES%\bpy\tbbmalloc_proxy*.dll" 2>nul
 
-REM Strip bundled tbb12 / tbbmalloc so the env-provided conda-forge `tbb`
-REM package wins (loader-race fix — see recipes/bpy/build.bat for details).
-echo ==^> Stripping bundled tbb12 / tbbmalloc from bpy\ (loader-race fix)
-del /F /Q "%SITE_PACKAGES%\bpy\tbb12*.dll" 2>nul
-del /F /Q "%SITE_PACKAGES%\bpy\tbbmalloc.dll" 2>nul
+REM Strip ALL bundled tbb-prefixed DLLs so the env-provided conda-forge `tbb`
+REM package wins (loader-race fix — see recipes/bpy/build.bat for details on
+REM why the previous narrow `tbb12*.dll` glob matched nothing).
+echo ==^> Stripping bundled tbb*.dll from bpy\ (loader-race fix)
+del /F /Q "%SITE_PACKAGES%\bpy\tbb*.dll" 2>nul
 
 echo ==^> Installing TBB_MALLOC_DISABLE_REPLACEMENT activate.d script
 set "ACT_DIR=%PREFIX%\etc\conda\activate.d"

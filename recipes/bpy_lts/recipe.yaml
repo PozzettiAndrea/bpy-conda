@@ -26,7 +26,10 @@ build:
   # _1: strip vendored Windows TBB (tbb12.dll, tbbmalloc.dll) and pull in
   # conda-forge `tbb` at run-time, so torch and bpy share one TBB instead
   # of fighting at LoadLibrary time.
-  number: 1
+  # _2: broaden the TBB strip glob in build.bat — `tbb12*.dll` matched
+  # nothing on the actual bundle (Blender ships tbb.dll / tbb_debug.dll).
+  # See recipes/bpy/recipe.yaml for full rationale.
+  number: 2
   # No hyphens in the build string — anaconda.org's repodata indexer parses
   # `{name}-{version}-{build}.conda` filenames; a hyphen in the build string
   # (e.g. "osx-arm64") makes the indexer mis-split and the package shows up
@@ -113,9 +116,10 @@ requirements:
     - if: win
       then:
         - vc14_runtime
-        # TBB runtime not bundled (build.bat strips tbb12*.dll /
-        # tbbmalloc.dll). Shared with torch / scipy / numpy-MKL to avoid
-        # the loader-race STATUS_ENTRYPOINT_NOT_FOUND symptom.
+        # TBB runtime not bundled (build.bat strips tbb*.dll — covers
+        # tbb.dll / tbb_debug.dll / tbb12* / tbbmalloc* / tbbmalloc_proxy*).
+        # Shared with torch / scipy / numpy-MKL to avoid the loader-race
+        # STATUS_ENTRYPOINT_NOT_FOUND symptom.
         - tbb
 
 about:
