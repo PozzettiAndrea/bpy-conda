@@ -43,7 +43,7 @@ PYTHON_H_RE = re.compile(r'^(?P<line>#\s*include\s+[<"]Python\.h[>"]\s*)$', re.M
 def patch(src_dir: pathlib.Path) -> int:
     target = src_dir / "source" / "blender" / "python" / "mathutils" / "mathutils_noise.cc"
     if not target.is_file():
-        print(f"WARN: {target} not found — skipping", file=sys.stderr)
+        print(f"WARN: {target} not found -- skipping", file=sys.stderr)
         return 0
 
     text = target.read_text(encoding="utf-8")

@@ -6,6 +6,16 @@ REM configure CMake with WITH_PYTHON_MODULE=ON pointed at conda's Python,
 REM build+install, then stage bpy\ into Library\Lib\site-packages\.
 setlocal enabledelayedexpansion
 
+REM Force Python's stdio to UTF-8 — see recipes/bpy/build.bat for rationale.
+REM This is especially load-bearing for 3.6 LTS where mathutils_noise.cc
+REM doesn't exist (Blender migrated mathutils to C++ in 4.0), so the patch
+REM script takes the `WARN: ... not found -- skipping` branch. Without
+REM PYTHONIOENCODING the earlier em-dash version of that warning emitted
+REM a stray CP-1252 byte that permanently silenced rattler-build's live
+REM log stream for the rest of the (multi-hour) build.
+set "PYTHONIOENCODING=utf-8"
+set "PYTHONUTF8=1"
+
 REM rattler-build auto-sets PY_VER (e.g. "3.12") when python is in host reqs.
 if "%PY_VER%"=="" (
     echo ERROR: PY_VER not set & exit /b 1

@@ -6,6 +6,10 @@ REM configure CMake with WITH_PYTHON_MODULE=ON pointed at conda's Python,
 REM build+install, then stage bpy\ into Library\Lib\site-packages\.
 setlocal enabledelayedexpansion
 
+REM Force Python's stdio to UTF-8 — see recipes/bpy/build.bat for rationale.
+set "PYTHONIOENCODING=utf-8"
+set "PYTHONUTF8=1"
+
 REM rattler-build auto-sets PY_VER (e.g. "3.12") when python is in host reqs.
 if "%PY_VER%"=="" (
     echo ERROR: PY_VER not set & exit /b 1
