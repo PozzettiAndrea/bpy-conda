@@ -54,6 +54,29 @@ REM "error C3861: 'time': identifier not found". Idempotent.
 echo ==^> Patching mathutils_noise.cc for CPython 3.13+ header hygiene
 python "%RECIPE_DIR%\..\..\scripts\patch_blender_mathutils_noise.py" "%SRC_DIR%"
 
+REM Stage numpy headers into %PREFIX%\include so audaspace-py finds
+REM <numpy/ndarrayobject.h>. Blender 5.1's audaspace Python binding
+REM (extern/audaspace/bindings/python/PyAnimateableProperty.cpp) needs
+REM numpy headers but its CMake target only gets -I%PREFIX%\include in
+REM its include path. conda-forge's numpy installs headers under
+REM %PREFIX%\Lib\site-packages\numpy\_core\include\numpy\, not under
+REM %PREFIX%\include\numpy\, so MSVC fails with C1083 "Cannot open
+REM include file: 'numpy/ndarrayobject.h'". Copying here is idempotent
+REM and safe — only %SITE_PACKAGES%\bpy gets shipped, not %PREFIX%\include.
+echo ==^> Staging numpy headers into %PREFIX%\include\numpy
+for /f "delims=" %%i in ('python -c "import numpy; print(numpy.get_include())"') do set "NUMPY_INC=%%i"
+echo   numpy.get_include^(^) -^> %NUMPY_INC%
+if exist "%NUMPY_INC%\numpy" (
+    if not exist "%PREFIX%\include\numpy" (
+        xcopy /E /I /Y /Q "%NUMPY_INC%\numpy" "%PREFIX%\include\numpy" >nul && echo   staged numpy headers
+    ) else (
+        echo   %PREFIX%\include\numpy already exists, skipping
+    )
+) else (
+    echo ERROR: numpy include dir %NUMPY_INC%\numpy not found
+    exit /b 1
+)
+
 echo ==^> CMake configure
 REM Use Blender's official bpy_module.cmake preset (the `make bpy` entry
 REM point). It sets WITH_PYTHON_MODULE=ON, WITH_PYTHON_INSTALL=OFF,

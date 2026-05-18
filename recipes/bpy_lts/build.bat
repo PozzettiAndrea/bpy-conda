@@ -55,6 +55,21 @@ REM "error C3861: 'time': identifier not found". Idempotent.
 echo ==^> Patching mathutils_noise.cc for CPython 3.13+ header hygiene
 python "%RECIPE_DIR%\..\..\scripts\patch_blender_mathutils_noise.py" "%SRC_DIR%"
 
+REM Stage numpy headers into %PREFIX%\include — see recipes/bpy/build.bat
+REM for the full rationale. 4.2 LTS doesn't have the audaspace binding
+REM that needs this, but the staging is idempotent + harmless and keeps
+REM the three recipes structurally aligned.
+echo ==^> Staging numpy headers into %PREFIX%\include\numpy
+for /f "delims=" %%i in ('python -c "import numpy; print(numpy.get_include())"') do set "NUMPY_INC=%%i"
+echo   numpy.get_include^(^) -^> %NUMPY_INC%
+if exist "%NUMPY_INC%\numpy" (
+    if not exist "%PREFIX%\include\numpy" (
+        xcopy /E /I /Y /Q "%NUMPY_INC%\numpy" "%PREFIX%\include\numpy" >nul && echo   staged numpy headers
+    ) else (
+        echo   %PREFIX%\include\numpy already exists, skipping
+    )
+)
+
 echo ==^> CMake configure
 REM Use Blender's official bpy_module.cmake preset — see recipes/bpy/build.bat
 REM for rationale (WITH_TBB_MALLOC_PROXY=OFF, WITH_WINDOWS_BUNDLE_CRT=OFF, ...).
