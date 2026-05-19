@@ -200,6 +200,11 @@ echo ==^> Mangling bpy/ DLLs to bpy_ private namespace (loader-race fix)
 python "%RECIPE_DIR%\..\..\scripts\mangle_bpy_dlls.py" "%SITE_PACKAGES%\bpy"
 if errorlevel 1 exit /b 1
 
+REM Install bpy.pth + _bpy_dll_preload.py — see recipes/bpy/build.bat.
+echo ==^> Installing bpy.pth + _bpy_dll_preload.py (Windows DLL preload bootstrap)
+python "%RECIPE_DIR%\..\..\scripts\write_bpy_preload.py" "%SITE_PACKAGES%"
+if errorlevel 1 exit /b 1
+
 REM Stripping isn't sufficient: conda-forge's `tbb` package (transitively
 REM pulled in via vc14_runtime) ships its own `Library\bin\tbbmalloc_proxy.dll`
 REM in the env, and Windows DLL search picks it up at runtime. Use the

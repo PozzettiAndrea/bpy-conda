@@ -145,6 +145,11 @@ echo ==^> Mangling bpy/ DLLs to bpy_ private namespace (loader-race fix)
 python "%RECIPE_DIR%\..\..\scripts\mangle_bpy_dlls.py" "%SITE_PACKAGES%\bpy"
 if errorlevel 1 exit /b 1
 
+REM Install bpy.pth + _bpy_dll_preload.py — see recipes/bpy/build.bat.
+echo ==^> Installing bpy.pth + _bpy_dll_preload.py (Windows DLL preload bootstrap)
+python "%RECIPE_DIR%\..\..\scripts\write_bpy_preload.py" "%SITE_PACKAGES%"
+if errorlevel 1 exit /b 1
+
 echo ==^> Installing TBB_MALLOC_DISABLE_REPLACEMENT activate.d script
 set "ACT_DIR=%PREFIX%\etc\conda\activate.d"
 set "DEACT_DIR=%PREFIX%\etc\conda\deactivate.d"
