@@ -74,6 +74,11 @@ REM "error C3861: 'time': identifier not found". Idempotent.
 echo ==^> Patching mathutils_noise.cc for CPython 3.13+ header hygiene
 python "%RECIPE_DIR%\..\..\scripts\patch_blender_mathutils_noise.py" "%SRC_DIR%"
 
+REM Patch CMakeLists.txt to guard bundled-Python install — see recipes/bpy/build.bat.
+echo ==^> Patching CMakeLists.txt to guard bundled-Python install on off-spec targets
+python "%RECIPE_DIR%\..\..\scripts\patch_blender_python_install.py" "%SRC_DIR%"
+if errorlevel 1 exit /b 1
+
 REM Stage numpy headers into %PREFIX%\include — see recipes/bpy/build.bat
 REM for the full rationale. 3.6 LTS doesn't have the audaspace binding
 REM that needs this, but the staging is idempotent + harmless and keeps

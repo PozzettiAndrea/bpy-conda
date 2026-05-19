@@ -61,6 +61,19 @@ REM "error C3861: 'time': identifier not found". Idempotent.
 echo ==^> Patching mathutils_noise.cc for CPython 3.13+ header hygiene
 python "%RECIPE_DIR%\..\..\scripts\patch_blender_mathutils_noise.py" "%SRC_DIR%"
 
+REM Patch source/creator/CMakeLists.txt to guard the bundled-Python-stdlib
+REM install rules with `if(EXISTS ...)`. Required for off-spec Python
+REM targets: Blender's lib bundle only ships ONE Python version per
+REM release (5.1.1 -> 3.13, 4.2.20 -> 3.11, 3.6.23 -> 3.10). When we
+REM target a different Python via -DPYTHON_VERSION, cmake_install
+REM fails because `${LIBDIR}/python/${_PYTHON_VERSION_NO_DOTS}/lib`
+REM doesn't exist. The patch makes the rule a no-op for absent bundle
+REM directories, so off-spec builds skip the bundled-stdlib install
+REM (the user-supplied conda Python provides its own stdlib anyway).
+echo ==^> Patching CMakeLists.txt to guard bundled-Python install on off-spec targets
+python "%RECIPE_DIR%\..\..\scripts\patch_blender_python_install.py" "%SRC_DIR%"
+if errorlevel 1 exit /b 1
+
 REM Stage numpy headers into %PREFIX%\include so audaspace-py finds
 REM <numpy/ndarrayobject.h>. Blender 5.1's audaspace Python binding
 REM (extern/audaspace/bindings/python/PyAnimateableProperty.cpp) needs
