@@ -83,7 +83,7 @@ requirements:
     - numpy
     # py-lief drives scripts/mangle_bpy_dlls.py — rewrites bundled
     # PE import tables. Build-time only. See recipes/bpy/recipe.yaml.
-    - py-lief >=0.16
+    - py-lief >=0.17
     # No conda-forge libboost — we patch bundle Boost's integral_wrapper.hpp
     # in place (Boost 1.86 backport) so clang 21+ accepts it. Bundle Boost
     # stays as the source of truth for header AND lib (avoids ABI mixing

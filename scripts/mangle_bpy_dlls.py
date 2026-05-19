@@ -96,9 +96,13 @@ def patch_pe_imports(path: Path, rename_map: dict[str, str]) -> bool:
     if not changed:
         return False
 
-    builder = lief.PE.Builder(binary)
-    builder.build_imports(True)
-    builder.patch_imports(True)
+    # lief 0.17+ requires a Builder.config_t passed to Builder().
+    # Older lief accepted Builder(binary) with no config. We use the
+    # explicit config so the API contract is clear and forward-compatible.
+    config = lief.PE.Builder.config_t()
+    config.imports = True          # rebuild import directory section
+    config.patch_imports = True    # apply our entry.name modifications
+    builder = lief.PE.Builder(binary, config)
     builder.build()
     builder.write(str(path))
     return True
