@@ -77,7 +77,7 @@ requirements:
     - numpy
     # py-lief drives scripts/mangle_bpy_dlls.py — rewrites bundled
     # PE import tables. Build-time only. See recipes/bpy/recipe.yaml.
-    - py-lief >=0.17
+    - pefile
     # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads

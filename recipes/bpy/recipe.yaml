@@ -88,7 +88,7 @@ requirements:
     # import tables of every bundled .pyd/.dll after `cmake --target
     # install`, mapping bundled DLL names into a private "bpy_*"
     # namespace. lief is needed only at build time, not at run time.
-    - py-lief >=0.17
+    - pefile
     # Blender's lib bundle ships its own copies of OpenImageIO, OSL, OpenVDB,
     # OpenSubdiv, USD, Embree, etc. — we deliberately do NOT add them to
     # `host` because mixing the bundle versions with conda-forge versions leads

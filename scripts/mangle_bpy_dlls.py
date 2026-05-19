@@ -1,5 +1,5 @@
 """
-Mangle bundled DLL names in bpy/ to a private "bpy_" namespace.
+Mangle bundled DLL names in bpy/ to a private namespace using pefile.
 
 Why: On Windows, `LoadLibrary` resolves DLL names by **basename match against
 already-loaded modules in the process**. If torch (or trimesh[easy]'s embreex,
@@ -9,25 +9,39 @@ even though `bpy/tbb12.dll` sits next to `bpy.pyd`. TBB 2020 and 2021 have
 ~30% different exported symbols, so this produces `STATUS_ENTRYPOINT_NOT_FOUND`
 deep in bpy initialization.
 
-Fix: rename bpy's bundled DLLs to a unique namespace (`bpy_tbb12.dll`,
-`bpy_embree4.dll`, ...) and patch the Import Address Table of every other
-PE file in bpy/ that imported them. The renamed DLLs can no longer collide
-with anyone else's `tbb12.dll` (nobody else ships `bpy_tbb12.dll`), so the
-basename-already-loaded cache is bypassed. CPython's loader resolves the
-renamed deps via `LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR`, which already prepends
-the .pyd's directory to the dependency search.
+Fix: rename bpy's bundled DLLs to a unique namespace and patch the Import
+Address Table of every other PE file in bpy/ that imported them.
 
-This is the same technique `delvewheel` uses for Python wheels on Windows.
-We adapt it for the conda packaging step.
+Tool choice: **pefile**, not lief.
+- lief 0.17's `Builder.config_t` has `imports=True` to rebuild the regular
+  import directory, but it has NO equivalent for delay imports. After lief
+  writes, the delay-import directory size is zeroed and the embedded delay-
+  load IAT entries are left in an inconsistent state, causing PE-load
+  failures for any DLL that originally had delay imports (e.g. embree4,
+  sycl8, OpenImageDenoise_device_*). Verified empirically against `_3`
+  build artifacts.
+- pefile modifies imports IN PLACE (no directory rebuild), so both regular
+  and delay-import entries survive untouched except for the specific name
+  strings we update.
+
+Constraint: pefile in-place writes require the new name ≤ original length.
+So we use a single-character substitution scheme: replace the first
+character with 'Z' (a letter no other Blender bundle DLL starts with).
+- `tbb12.dll`   -> `Zbb12.dll`
+- `embree4.dll` -> `Zmbree4.dll`
+- `openvdb.dll` -> `Zpenvdb.dll`
+
+Ugly but functional. The Z-prefix is unique to bpy-conda's private
+namespace — no other package on Windows ships DLLs with this exact
+pattern (their `tbb12.dll` is still `tbb12.dll`, never colliding with
+our `Zbb12.dll`). The basename-already-loaded cache cannot interfere.
 
 Idempotent: re-running on an already-mangled directory is a no-op.
 
 Usage:
     python scripts/mangle_bpy_dlls.py <bpy_dir>
 
-Requirements:
-    py-lief >=0.16 (handles arbitrary-length import-name rewrites and rebuilds
-    the import table correctly; `pefile` would require equal-or-shorter names).
+Requirements: pefile (any 2023.x+). Available on conda-forge.
 """
 from __future__ import annotations
 
@@ -36,9 +50,12 @@ import logging
 import sys
 from pathlib import Path
 
-import lief
+import pefile
 
-PREFIX = "bpy_"
+# Single-char substitution at position 0. Z is rare as DLL first-char and
+# never appears in Blender's bundle. Lowercase z is also fine but Z reads
+# more clearly as "private namespace tag" in directory listings.
+PREFIX_CHAR = "Z"
 
 log = logging.getLogger("mangle_bpy_dlls")
 
@@ -51,59 +68,80 @@ def list_pe_files(bpy_dir: Path) -> list[Path]:
     return pes
 
 
+def mangle_name(original: str) -> str:
+    """Replace first char with PREFIX_CHAR. Returns same-length string."""
+    if not original:
+        return original
+    return PREFIX_CHAR + original[1:]
+
+
+def is_mangled(name: str) -> bool:
+    """True if name starts with our private prefix (idempotency check)."""
+    return name[:1] == PREFIX_CHAR
+
+
 def build_rename_map(pe_files: list[Path]) -> dict[str, str]:
     """
-    Build {old_basename_lower: new_basename} for *.dll files inside bpy/.
-    .pyd files are NOT renamed — they're Python extension entry points,
-    Python imports them by their fixed module names.
+    Build {old_basename_lower: new_basename} for *.dll files in bpy/.
+    .pyd files are NOT renamed — Python imports them by fixed module names.
     """
     rename_map: dict[str, str] = {}
     for path in pe_files:
         if path.suffix.lower() != ".dll":
             continue
         basename = path.name
-        if basename.lower().startswith(PREFIX.lower()):
+        if is_mangled(basename):
             continue
-        rename_map[basename.lower()] = PREFIX + basename
+        rename_map[basename.lower()] = mangle_name(basename)
     return rename_map
 
 
 def patch_pe_imports(path: Path, rename_map: dict[str, str]) -> bool:
     """
-    Rewrite import entries in the PE at `path` whose name matches the
-    rename_map. Returns True iff the file was modified and saved.
+    In-place rewrite import entries in the PE at `path` whose DLL name
+    matches the rename_map. Modifies both regular and delay imports.
+    Returns True iff the file was modified and saved.
     """
-    binary = lief.PE.parse(str(path))
-    if binary is None:
-        raise RuntimeError(f"lief failed to parse {path}")
-
+    pe = pefile.PE(str(path), fast_load=False)
     changed = False
 
-    for entry in binary.imports:
-        old = entry.name.lower()
-        if old in rename_map:
-            entry.name = rename_map[old]
+    # Regular imports
+    for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", []) or []:
+        old_name = entry.dll.decode("ascii", errors="replace")
+        old_lower = old_name.lower()
+        if old_lower in rename_map:
+            new_name = rename_map[old_lower]
+            assert len(new_name) == len(old_name), (
+                f"length mismatch: {old_name!r} -> {new_name!r}"
+            )
+            entry.dll = new_name.encode("ascii")
+            # pefile stores name at entry.struct.Name (RVA). Write in-place.
+            pe.set_bytes_at_rva(
+                entry.struct.Name,
+                new_name.encode("ascii") + b"\x00",
+            )
             changed = True
 
-    delay_imports = getattr(binary, "delay_imports", None)
-    if delay_imports is not None:
-        for entry in delay_imports:
-            old = entry.name.lower()
-            if old in rename_map:
-                entry.name = rename_map[old]
-                changed = True
+    # Delay imports (the whole reason we switched away from lief)
+    for entry in getattr(pe, "DIRECTORY_ENTRY_DELAY_IMPORT", []) or []:
+        old_name = entry.dll.decode("ascii", errors="replace")
+        old_lower = old_name.lower()
+        if old_lower in rename_map:
+            new_name = rename_map[old_lower]
+            assert len(new_name) == len(old_name)
+            entry.dll = new_name.encode("ascii")
+            pe.set_bytes_at_rva(
+                entry.struct.szName,
+                new_name.encode("ascii") + b"\x00",
+            )
+            changed = True
 
     if not changed:
+        pe.close()
         return False
 
-    # Use the high-level `Binary.write(path, config)` API rather than
-    # Builder directly. `config.imports = True` is required — the
-    # default config has imports=False and silently DROPS edits to
-    # the import table (lief 0.17.6 behavior, verified against the
-    # tests/pe/test_imports_mod.py::test_rename example).
-    config = lief.PE.Builder.config_t()
-    config.imports = True
-    binary.write(str(path), config)
+    pe.write(filename=str(path))
+    pe.close()
     return True
 
 
@@ -137,6 +175,7 @@ def main() -> int:
     for old, new in sorted(rename_map.items()):
         log.info("  %s -> %s", old, new)
 
+    # Phase 1: patch all PE imports (both regular and delay).
     n_patched = 0
     for path in pe_files:
         try:
@@ -148,6 +187,7 @@ def main() -> int:
             return 1
     log.info("patched IAT in %d PE files", n_patched)
 
+    # Phase 2: rename DLL files on disk.
     n_renamed = 0
     for path in pe_files:
         if path.suffix.lower() != ".dll":
