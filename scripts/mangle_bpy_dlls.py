@@ -96,15 +96,14 @@ def patch_pe_imports(path: Path, rename_map: dict[str, str]) -> bool:
     if not changed:
         return False
 
-    # lief 0.17+ requires a Builder.config_t passed to Builder().
-    # Older lief accepted Builder(binary) with no config. We use the
-    # explicit config so the API contract is clear and forward-compatible.
+    # Use the high-level `Binary.write(path, config)` API rather than
+    # Builder directly. `config.imports = True` is required — the
+    # default config has imports=False and silently DROPS edits to
+    # the import table (lief 0.17.6 behavior, verified against the
+    # tests/pe/test_imports_mod.py::test_rename example).
     config = lief.PE.Builder.config_t()
-    config.imports = True          # rebuild import directory section
-    config.patch_imports = True    # apply our entry.name modifications
-    builder = lief.PE.Builder(binary, config)
-    builder.build()
-    builder.write(str(path))
+    config.imports = True
+    binary.write(str(path), config)
     return True
 
 
