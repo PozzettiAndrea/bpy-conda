@@ -14,12 +14,7 @@ import yaml
 
 PLATFORM_MAP = {
     "linux": {"runner": "ubuntu-22.04", "subdir": "linux-64"},
-    # Windows builds route to the self-hosted runner ANDREA-PC-bpy-conda
-    # (Xeon E5-2698 v4, 40 threads, 32 GB RAM, VS2022 BuildTools 17.14).
-    # ~10x faster than GitHub-hosted windows-2022 (4 vCPUs). Matched
-    # exclusively via the `bpy-conda` label so other self-hosted runners
-    # on the same box (cuda-wheels, comfy-gpu-ci) don't pick up the job.
-    "windows": {"runner": ["self-hosted", "Windows", "X64", "bpy-conda"], "subdir": "win-64"},
+    "windows": {"runner": "windows-2022", "subdir": "win-64"},
     # macos-15 (Xcode 16+) — required by Blender 5.1's CMake. macos-14
     # only has Xcode 15.4 and Blender 5.1's platform_apple.cmake rejects
     # it with "Only Xcode version 16.0 and newer is supported". 4.2 LTS
