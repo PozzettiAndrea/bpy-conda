@@ -1,0 +1,211 @@
+name: Publish bpy wheels (pip simple index)
+
+# Repackages every published bpy .conda on the pozzettiandrea anaconda
+# channel into a pip-installable .whl, uploads the wheels as assets on
+# the `wheels-latest` GitHub Release (force-replacing prior assets),
+# and regenerates a PEP 503 simple/ index served from the gh-pages
+# branch.
+#
+# User-facing install command (after a successful run):
+#   pip install --index-url https://pozzettiandrea.github.io/bpy-conda/simple/ bpy
+#
+# Conda pipeline is NOT touched — this workflow reads from anaconda.org
+# (the existing build's output) and is independent.
+
+on:
+  workflow_dispatch:
+    inputs:
+      subdir:
+        description: "Channel subdir filter"
+        type: choice
+        options: ["all", "win-64", "linux-64", "osx-arm64"]
+        default: "all"
+
+permissions:
+  contents: write   # for the Release upload + gh-pages push
+
+jobs:
+  enumerate:
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - name: List published .conda files
+        id: list
+        env:
+          SUBDIR: ${{ inputs.subdir }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          data = json.loads(urllib.request.urlopen(
+              "https://api.anaconda.org/package/pozzettiandrea/bpy/files",
+              timeout=30).read())
+          want = os.environ.get("SUBDIR", "all")
+          matrix = []
+          for f in data:
+              attrs = f.get("attrs") or {}
+              subdir = attrs.get("subdir") or f.get("ndarch")
+              if want != "all" and subdir != want:
+                  continue
+              if subdir not in {"win-64", "linux-64", "osx-arm64"}:
+                  continue
+              matrix.append({
+                  "basename": f["basename"].split("/")[-1],
+                  "subdir": subdir,
+              })
+          matrix.sort(key=lambda x: (x["subdir"], x["basename"]))
+          print(f"matrix: {len(matrix)} wheels")
+          for e in matrix:
+              print(f"  {e['subdir']}/{e['basename']}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"matrix={json.dumps(matrix)}\n")
+          PY
+
+  build:
+    needs: enumerate
+    if: ${{ needs.enumerate.outputs.matrix != '[]' }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.enumerate.outputs.matrix) }}
+    name: "${{ matrix.subdir }} / ${{ matrix.basename }}"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tooling
+        run: python -m pip install --upgrade pip conda-package-handling zstandard
+
+      - name: Download .conda
+        run: |
+          mkdir -p incoming wheels
+          url="https://conda.anaconda.org/pozzettiandrea/${{ matrix.subdir }}/${{ matrix.basename }}"
+          echo "Fetching $url"
+          curl -fsSL -o "incoming/${{ matrix.basename }}" "$url"
+
+      - name: Repackage to wheel
+        id: repack
+        run: |
+          python scripts/conda_to_wheel.py "incoming/${{ matrix.basename }}" wheels
+          ls -la wheels/
+          whl=$(ls wheels/*.whl | head -1)
+          echo "whl=$whl" >> "$GITHUB_OUTPUT"
+          echo "filename=$(basename $whl)" >> "$GITHUB_OUTPUT"
+          sha=$(sha256sum "$whl" | awk '{print $1}')
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+
+      # Per-wheel artifact so the release-and-index job can collect them all.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.subdir }}-${{ matrix.basename }}
+          path: ${{ steps.repack.outputs.whl }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Record manifest entry
+        run: |
+          mkdir -p manifest
+          jq -n \
+            --arg filename "${{ steps.repack.outputs.filename }}" \
+            --arg sha256 "${{ steps.repack.outputs.sha256 }}" \
+            --arg subdir  "${{ matrix.subdir }}" \
+            '{filename:$filename, sha256:$sha256, subdir:$subdir}' \
+            > "manifest/${{ steps.repack.outputs.filename }}.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ matrix.subdir }}-${{ matrix.basename }}
+          path: manifest/
+          retention-days: 1
+
+  release-and-index:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          path: wheels-raw
+          merge-multiple: true
+
+      - name: Download all manifest entries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: manifest-*
+          path: manifest-raw
+          merge-multiple: true
+
+      - name: Move-or-recreate the wheels-latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="wheels-latest"
+          # Remove the old release if any (assets + release row). Tag is
+          # re-pointed to the current commit afterwards.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Deleting old release $tag"
+            gh release delete "$tag" --yes --cleanup-tag || true
+          fi
+          gh release create "$tag" \
+            --title "bpy wheels (latest)" \
+            --notes "Pip-installable wheels repackaged from the pozzettiandrea/bpy conda channel. Generated by .github/workflows/publish-wheels.yml run ${{ github.run_id }}." \
+            wheels-raw/*.whl
+
+      - name: Build PEP 503 manifest with release-asset URLs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          owner_repo="${GITHUB_REPOSITORY}"
+          # Assemble per-wheel manifest with the actual download URL.
+          mkdir -p site
+          python3 - <<PY
+          import glob, json
+          repo = "${owner_repo}"
+          base = f"https://github.com/{repo}/releases/download/wheels-latest"
+          out = []
+          for p in sorted(glob.glob("manifest-raw/*.json")):
+              e = json.load(open(p))
+              out.append({
+                  "filename": e["filename"],
+                  "sha256":   e["sha256"],
+                  "url":      f"{base}/{e['filename']}",
+              })
+          with open("manifest.json", "w") as f:
+              json.dump(out, f, indent=2)
+          print(f"manifest: {len(out)} entries")
+          PY
+
+      - name: Generate simple/ index
+        run: python3 scripts/build_simple_index.py site manifest.json
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          force_orphan: true   # squash gh-pages history each run (it's a built artifact, not history)
+          commit_message: "Publish wheels index (run ${{ github.run_id }})"
+
+      - name: Summary
+        run: |
+          {
+            echo "## bpy wheels published"
+            echo ""
+            echo "Release: \`wheels-latest\`"
+            echo "Index:   https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/simple/"
+            echo ""
+            echo "Install:"
+            echo "\`\`\`"
+            echo "pip install --index-url https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/simple/ bpy"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
